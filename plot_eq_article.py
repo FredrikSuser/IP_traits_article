@@ -88,6 +88,19 @@ def compute_trait_per_individual_alpha(*, alphavalues, beta, N):
     R_infty = np.array([compute_trait_per_individual(alpha=alpha, beta=beta, N=N) for alpha in alphavalues])
     return R_infty
 
+
+def compute_R_infty_hat(alpha, beta, N,mu):
+    first_factor = mu * np.sqrt(2*np.pi*N) / beta
+    second_factor = np.power(alpha/beta * np.exp(beta/alpha - 1), N-1)
+    R_infty_hat = first_factor * second_factor
+    return R_infty_hat
+
+def compute_R_infty_hat_alpha_less_beta(alpha, beta, N,mu):
+    first_factor = mu * N / alpha
+    second_factor = np.log(1/1 -(alpha/beta))
+    R_infty_hat = first_factor * second_factor
+    return R_infty_hat
+
 def compute_S_hat_from_alpha(*, alphavalues, beta, mu, N):
     S_hat = np.array([compute_S_hat(alpha, beta, N, mu) for alpha in alphavalues])
     return S_hat
@@ -173,6 +186,19 @@ def plot_f_with_approx(f, f_approx):
     plt.grid()
     plt.show()
 
+def plot_R(R,R_approx,x,xlabel, s_approx_label):
+    plt.figure(figsize=(8, 5))
+    plt.plot(x, R, linestyle='-', color='b', label='$S$')
+    if R_approx is not None:  
+        plt.plot(x, R_approx, linestyle='--', color='r', label=s_approx_label)
+    plt.xlabel(xlabel)
+    plt.ylabel("Expected amount $S$ of culture at equilibrium")
+    plt.title('')
+    plt.legend()
+    plt.grid()
+    plt.savefig('plotRalphalessthanbeta1.png', dpi=500)
+    plt.show()
+
     
 def generate_figure_S_and_approx_when_alpha_less_than_beta():
     beta = 1
@@ -216,8 +242,28 @@ def generate_figure_popularity_distribution_alpha_less_than_beta():
     plot_f_with_approx(f_new, f_approx)
 
 
+def generate_trait_per_individual_when_alpha_greater_than_beta():
+    beta = 1
+    mu = 0.1
+    N =100
+    alphavalues = np.arange(1.01, 1.5, 0.01)
+    R_infty = compute_trait_per_individual_alpha(alphavalues = alphavalues, beta=beta, N=N,mu=mu)
+    R_infty_hat = compute_R_infty_hat(alpha=alphavalues, beta=beta, N=N, mu=mu)
+    plot_R(R = R_infty, R_approx = R_infty_hat, x=alphavalues, xlabel = '$\\alpha/\\beta$', s_approx_label='$\\hat{R}$')    
+    
+    
+def generate_trait_per_individual_when_alpha_less_than_beta():
+    beta = 1
+    mu = 0.1
+    N =100
+    alphavalues = np.arange(0.01, 1, 0.01)
+    R_infty = compute_trait_per_individual_alpha(alphavalues = alphavalues, beta=beta, N=N,mu=mu)
+    R_infty_hat = compute_R_infty_hat_alpha_less_beta(alpha =alphavalues, beta=beta, N=N, mu=mu)
+    plot_R(R = R_infty, R_approx = R_infty_hat, x=alphavalues, xlabel = '$\\alpha/\\beta$', s_approx_label='$\\hat{R}$')
+
+
 def main():
-    generate_figure_popularity_distribution_alpha_greater_than_beta()
+    generate_trait_per_individual_when_alpha_less_than_beta()
     return
     alpha = 1.7
     beta = 1
