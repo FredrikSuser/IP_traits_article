@@ -96,8 +96,8 @@ def compute_R_infty_hat(alpha, beta, N,mu):
     return R_infty_hat
 
 def compute_R_infty_hat_alpha_less_beta(alpha, beta, N,mu):
-    first_factor = mu * N / alpha
-    second_factor = np.log(1/1 -(alpha/beta))
+    first_factor = mu 
+    second_factor = 1/(beta - alpha)
     R_infty_hat = first_factor * second_factor
     return R_infty_hat
 
