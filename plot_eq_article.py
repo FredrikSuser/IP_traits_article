@@ -82,11 +82,11 @@ def compute_S_hat(alpha, beta,N,mu):
     
 def compute_trait_per_individual(*,alpha, beta, N, mu):
     f = compute_f_new(alpha, beta, N, mu)
-    return np.sum(f * (1 + np.range(N))) / N
+    return np.sum(f * (1 + np.arange(N))) / N
 
-def compute_trait_per_individual_alpha(*, alphavalues, beta, N):
-    R_infty = np.array([compute_trait_per_individual(alpha=alpha, beta=beta, N=N) for alpha in alphavalues])
-    return R_infty
+def compute_trait_per_individual_from_alpha(*, alphavalues, beta, mu, N):
+    R = np.array([compute_trait_per_individual(alpha=alpha, beta=beta, N=N, mu=mu) for alpha in alphavalues])
+    return R
 
 
 def compute_R_infty_hat(alpha, beta, N,mu):
@@ -112,11 +112,11 @@ def compute_S_hat_from_beta(*, alpha, betavalues, mu, N):
 
 def plot_S(S,S_approx,x,xlabel, s_approx_label):
     plt.figure(figsize=(8, 5))
-    plt.plot(x, S, linestyle='-', color='b', label='$S$')
+    plt.plot(x, S, linestyle='-', color='b', label='$E(S)$')
     if S_approx is not None:  
         plt.plot(x, S_approx, linestyle='--', color='r', label=s_approx_label)
     plt.xlabel(xlabel)
-    plt.ylabel("Expected amount $S$ of culture at equilibrium")
+    plt.ylabel("Expected amount of culture at equilibrium")
     plt.title('')
     plt.legend()
     plt.grid()
@@ -188,11 +188,11 @@ def plot_f_with_approx(f, f_approx):
 
 def plot_R(R,R_approx,x,xlabel, s_approx_label):
     plt.figure(figsize=(8, 5))
-    plt.plot(x, R, linestyle='-', color='b', label='$S$')
+    plt.plot(x, R, linestyle='-', color='b', label='$E(R)/E(S)$')
     if R_approx is not None:  
         plt.plot(x, R_approx, linestyle='--', color='r', label=s_approx_label)
     plt.xlabel(xlabel)
-    plt.ylabel("Expected amount $S$ of culture at equilibrium")
+    plt.ylabel("Proportion of expected total culture carried by each agent")
     plt.title('')
     plt.legend()
     plt.grid()
@@ -207,7 +207,7 @@ def generate_figure_S_and_approx_when_alpha_less_than_beta():
     alphavalues = np.arange(0, 1, 0.01)
     S = compute_S_from_alpha(alphavalues=alphavalues, beta=beta, mu=mu, N=N)
     S_tilde = compute_S_tilde_from_alpha(alphavalues=alphavalues, beta= beta, mu=mu, N=N)
-    plot_S(S=S,S_approx = S_tilde,x=alphavalues,xlabel = 'alpha/beta $ alpha/beta $',s_approx_label=None) 
+    plot_S(S=S,S_approx = S_tilde,x=alphavalues,xlabel = '$ \\alpha $',s_approx_label= 'approximation') 
 
 def generate_figure_S_and_approx_when_alpha_greater_than_beta():
     beta = 1
@@ -245,25 +245,29 @@ def generate_figure_popularity_distribution_alpha_less_than_beta():
 def generate_trait_per_individual_when_alpha_greater_than_beta():
     beta = 1
     mu = 0.1
-    N =100
+    N =1000
     alphavalues = np.arange(1.01, 1.5, 0.01)
-    R_infty = compute_trait_per_individual_alpha(alphavalues = alphavalues, beta=beta, N=N,mu=mu)
-    R_infty_hat = compute_R_infty_hat(alpha=alphavalues, beta=beta, N=N, mu=mu)
-    plot_R(R = R_infty, R_approx = R_infty_hat, x=alphavalues, xlabel = '$\\alpha/\\beta$', s_approx_label='$\\hat{R}$')    
+    S = compute_S_from_alpha(alphavalues=alphavalues, beta=beta, mu= mu, N=N)
+    R_infty = compute_trait_per_individual_from_alpha(alphavalues = alphavalues, beta=beta, N=N,mu=mu)
+    R_over_S_approx = 1 - 1/alphavalues
+    plot_R(R = R_infty/S, R_approx = R_over_S_approx, x=alphavalues, xlabel = '$\\alpha$', s_approx_label='approximation')    
     
     
 def generate_trait_per_individual_when_alpha_less_than_beta():
     beta = 1
     mu = 0.1
-    N =100
+    N =1000
     alphavalues = np.arange(0.01, 1, 0.01)
-    R_infty = compute_trait_per_individual_alpha(alphavalues = alphavalues, beta=beta, N=N,mu=mu)
-    R_infty_hat = compute_R_infty_hat_alpha_less_beta(alpha =alphavalues, beta=beta, N=N, mu=mu)
-    plot_R(R = R_infty, R_approx = R_infty_hat, x=alphavalues, xlabel = '$\\alpha/\\beta$', s_approx_label='$\\hat{R}$')
+    S = compute_S_from_alpha(alphavalues=alphavalues, beta=beta, mu= mu, N=N)
+    R_infty = compute_trait_per_individual_from_alpha(alphavalues = alphavalues, beta=beta, N=N,mu=mu)
+    R_over_S_approx = 1/(N * (1/alphavalues - 1) * np.log(1/(1-alphavalues)))
+    plot_R(R = R_infty/S, R_approx = R_over_S_approx, x=alphavalues, xlabel = '$\\alpha$', s_approx_label='approximation')    
+
 
 
 def main():
-    generate_trait_per_individual_when_alpha_less_than_beta()
+    #generate_figure_S_and_approx_when_alpha_less_than_beta()
+    generate_trait_per_individual_when_alpha_greater_than_beta()
     return
     alpha = 1.7
     beta = 1
