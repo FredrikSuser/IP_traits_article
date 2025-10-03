@@ -10,42 +10,59 @@ import matplotlib.pyplot as plt
 from scipy.integrate import solve_ivp
 
 N = 100
-alpha = 0.9
-beta = 0.45
-alpha_values = [0.5]
+alpha = 1
+beta = 1
+alpha_values = [0.01, 0.1, 0.5, 0.9,1.2]
 beta_values = [0.20, 0.24, 0.25, 0.28]
 mu = 0.1
-tmax = 200
+tmax = 50000
 
 # vary beta and keep alpha fixed as well.
 
-def construct_tridiagonal_matrix(N, alpha, beta):
-    A = np.zeros((N, N))
+# def construct_tridiagonal_matrix(N, alpha, beta):
+#     A = np.zeros((N, N))
 
-    for k in range(1, N + 1):
-        if k > 1:
-            A[k-1, k-2] = (alpha * (k - 1) * (N - (k - 1)) * (N - beta *( k - 1))) / (N**2 * (N - 1))
+#     for k in range(1, N + 1):
+#         if k > 1:
+#             A[k-1, k-2] = (alpha * (k - 1) * (N - (k - 1)) * (N - beta *( k - 1))) / (N**2 * (N - 1))
         
-        A[k-1, k-1] = (N *(N-1) * (N - beta * k) - alpha * (k * N * (N - k) + beta * k * (2 * k**2 + 1 + N - 2 * k * (N + 1)))) / (N**2 * (N - 1))
+#         A[k-1, k-1] = (N *(N-1) * (N - beta * k) - alpha * (k * N * (N - k) + beta * k * (2 * k**2 + 1 + N - 2 * k * (N + 1)))) / (N**2 * (N - 1))
         
-        if k < N:
-            A[k-1, k] = (beta * (k + 1) * (-alpha * k * (N - k) + N * (N - 1))) / (N**2 * (N - 1))
+#         if k < N:
+#             A[k-1, k] = (beta * (k + 1) * (-alpha * k * (N - k) + N * (N - 1))) / (N**2 * (N - 1))
     
-    return A
+#     return A
+
+# def construct_new_tridiagonal_mtx(N,alpha, beta):
+#     Q = np.zeros((N,N))
+    
+#     for k in range(1, N + 1):
+#         if k > 1:
+#             Q[k-1, k-2] = beta*(k)
+        
+#         Q[k-1, k-1] = -beta*k-alpha*k*(N-k)/(N-1)
+        
+#         if k< N:
+#             Q[k-1, k] = alpha*k*(N-k)/(N-1)
+    
+#     print(np.linalg.norm(Q.sum(axis=1)))
+    
+#     return Q
+
 
 def construct_new_tridiagonal_mtx(N,alpha, beta):
     Q = np.zeros((N,N))
     
     for k in range(1, N + 1):
         if k > 1:
-            Q[k-1, k-2] = beta*(k)
+            Q[k-1, k-2] = k
         
-        Q[k-1, k-1] = -beta*k-alpha*k*(N-k)/(N-1)
+        Q[k-1, k-1] = -k-alpha*k*(N-k)/(N-1)
         
         if k< N:
             Q[k-1, k] = alpha*k*(N-k)/(N-1)
     
-    print(np.linalg.norm(Q.sum(axis=1)))
+    #print(np.linalg.norm(Q.sum(axis=1)))
     
     return Q
 
@@ -53,12 +70,12 @@ def construct_new_tridiagonal_mtx(N,alpha, beta):
 
 
 def compute_S(N, alpha, beta, mu, tmax):
-    A = construct_tridiagonal_matrix(N, alpha, beta) # new matrix Q
+    A = construct_tridiagonal_matrix(N, alpha, beta)
     f = np.zeros(N)
     mu_and_zeros = np.zeros(N)
     mu_and_zeros[0] = mu
     S = np.zeros(tmax)
-    for t in range(1,tmax): # implement with scipy solve_ivp
+    for t in range(1,tmax):
         f = np.dot(A, f) + mu_and_zeros
         S[t] = f.sum()    
     return S
@@ -73,9 +90,9 @@ def compute_S_new(N, alpha, beta, mu, tmax):
 
 
     def odesys(t, f):
-        return f @ q + mu_and_zeros*N
+        return q.T @ f + mu_and_zeros[:, None] * N
     t_eval = np.arange(tmax)  # Ensures 100 time points
-    sol = solve_ivp(odesys, (0, tmax - 1), f0, t_eval=t_eval, vectorized=False)
+    sol = solve_ivp(odesys, (0, tmax - 1), f0, t_eval=t_eval, vectorized=True,jac=q.T, method= 'BDF')
 
     S = np.sum(sol.y, axis=0)  # shape = (tmax,)
     return S
@@ -105,8 +122,8 @@ def plot_S(alpha_values, N, beta, mu, tmax):
     for alpha in alpha_values:
         S = compute_S(N, alpha, beta, mu, tmax)
         S_eq = compute_S_eq(N, alpha, beta, mu)
-        plt.plot(x, S, linestyle='-', label=f'$S$ (α/β ={alpha/beta: .2f})')
-        plt.plot(x, S_eq * np.ones_like(x), linestyle='--', label=f'$S_{{eq}}$ (α/β={alpha/beta: .2f})')
+        plt.plot(x, S, linestyle='-', label=f'$S$ (α ={alpha: .2f})')
+        #plt.plot(x, S_eq * np.ones_like(x), linestyle='--', label=f'$S_{{eq}}$ (α/β={alpha/beta: .2f})')
         
         
     
@@ -134,7 +151,7 @@ def plot_S_new(alpha_values, N, beta, mu, tmax):
         S = compute_S_new(N, alpha, beta, mu, tmax)
         x = np.arange(len(S))
         #S_eq = compute_S_eq(N, alpha, beta, mu)
-        plt.plot(x, S, linestyle='-', label=f'$S$ (α/β ={alpha/beta: .2f})')
+        plt.plot(x, S, linestyle='-', label=f'$S$ (α ={alpha: .2f})')
         #plt.plot(x, S_eq * np.ones_like(x), linestyle='--', label=f'$S_{{eq}}$ (α/β={alpha: .2f})')
     
     plt.xlabel('time t')
@@ -143,6 +160,7 @@ def plot_S_new(alpha_values, N, beta, mu, tmax):
     plt.legend()
     plt.grid()
     plt.legend(fontsize='small', labelspacing=0.3, handlelength=1.5, borderpad=0.5)
+    plt.savefig('plotalpha1.eps', format= 'eps')
     plt.show()
 
 def plot_loss_rate(alpha, N, beta, mu, tmax):
@@ -158,10 +176,49 @@ def plot_loss_rate(alpha, N, beta, mu, tmax):
     plt.grid()
     plt.show()
     
+def time_to_equilibrium(S, S_eq, tol=0.05): # Original tolerance tol=1e-2
+    """
+    Find the first time index where S is within tol of equilibrium.
+    Returns len(S)-1 if never reached.
+    """
+    print(S_eq)
+    for t, val in enumerate(S):
+        print(f"   {val}")
+        if -(val - S_eq) <= tol * S_eq:
+            return t
+    return len(S) - 1
+
+
+def plot_time_to_equilibrium(N, beta, mu, tmax, alpha_min=0, alpha_max=1.5, n_points=50, tol=1e-2):
+    """
+    Plot time to equilibrium vs alpha.
+    """
+    alpha_values = np.linspace(alpha_min, alpha_max, n_points)
+    times = []
+
+    for alpha in alpha_values:
+        # compute trajectory and equilibrium
+        S = compute_S_new(N, alpha, beta, mu, tmax)
+        S_eq = compute_S_eq(N, alpha, beta, mu)
+        t_eq = time_to_equilibrium(S, S_eq, tol=tol)
+        times.append(t_eq)
+
+    # plot
+    plt.figure(figsize=(8, 5))
+    plt.plot(alpha_values, times, "o-", label="time to equilibrium")
+    plt.xlabel(r"social earning efficiency $\alpha$")
+    plt.ylabel("time to equilibrium")
+    plt.title("Time to reach equilibrium vs α")
+    plt.grid(True)
+    plt.legend()
+    plt.show()
+
+plot_time_to_equilibrium(N, beta, mu, tmax)
+    
 
 #plot_S(alpha_values, N, beta, mu, tmax)
 #plot_loss_rate(alpha, N, beta, mu, tmax)
-plot_S_new(alpha_values,N, beta, mu , tmax)
+#plot_S_new(alpha_values,N, beta, mu , tmax)
 
 
 
