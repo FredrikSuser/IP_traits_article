@@ -55,6 +55,13 @@ def compute_S_from_beta(*,betavalues,alpha, mu,N):
 def compute_S_tilde_from_N(*,alpha,beta,mu,Nvalues):
     S_tilde =  (mu * Nvalues / alpha) * np.log(1 / (1 - alpha / beta)) 
     return S_tilde
+
+def compute_S_tilde_from_N_alpha_greater_than_one(*,alpha,mu,Nvalues):
+    numerator = mu * np.sqrt(2 * np.pi * Nvalues)
+    denominator = 1 - (1 / alpha)
+    base = alpha * np.exp(-(1 - (1 / alpha)))
+    S_tilde =  (numerator / denominator) * (base ** (Nvalues - 1))
+    return S_tilde
     
     #make s tilde for alpha2 from prop2
 def compute_S_tilde_from_alpha(*,alphavalues,beta,mu,N):
@@ -263,11 +270,101 @@ def generate_trait_per_individual_when_alpha_less_than_beta():
     R_over_S_approx = 1/(N * (1/alphavalues - 1) * np.log(1/(1-alphavalues)))
     plot_R(R = R_infty/S, R_approx = R_over_S_approx, x=alphavalues, xlabel = '$\\alpha$', s_approx_label='approximation')    
 
+def generate_combined_trait_per_individual():
+    beta = 1
+    mu = 0.1
+    N = 1000
+    alphavalues = np.linspace(0.01, 2, 200)  # avoid 0 to prevent division by zero
+
+    # true values
+    S = compute_S_from_alpha(alphavalues=alphavalues, beta=beta, mu=mu, N=N)
+    R_infty = compute_trait_per_individual_from_alpha(alphavalues=alphavalues, beta=beta, N=N, mu=mu)
+    R_over_S_true = R_infty / S
+
+    # approximations
+    mask_less = alphavalues < 1
+    mask_greater = alphavalues > 1
+
+    R_over_S_approx_less = 1 / (
+        N * (1 / alphavalues[mask_less] - 1) * np.log(1 / (1 - alphavalues[mask_less]))
+    )
+    R_over_S_approx_greater = 1 - 1 / alphavalues[mask_greater]
+
+    # plot
+    plt.figure(figsize=(8, 6))
+    plt.plot(alphavalues, R_over_S_true, label=r"$R_\infty / S$ (true)", color="black", linewidth=2)
+    plt.plot(
+        alphavalues[mask_less],
+        R_over_S_approx_less,
+        "--",
+        label=r"approx ($\alpha < 1$)",
+        color="blue",
+    )
+    plt.plot(
+        alphavalues[mask_greater],
+        R_over_S_approx_greater,
+        "--",
+        label=r"approx ($\alpha > 1$)",
+        color="red",
+    )
+
+    plt.xlabel(r"$\alpha$")
+    plt.ylabel(r"$R_\infty / S$")
+    plt.title(r"Trait per individual: true vs approximations")
+    plt.legend()
+    plt.grid(True)
+    plt.show()
+    
+def generate_combined_figure():
+    mu = 0.1
+    N = 100
+    alphavalues = np.linspace(0.01, 2, 200)  # avoid 0 to prevent division issues
+
+    # true S
+    S = compute_S_from_alpha(alphavalues=alphavalues, mu=mu, N=N)
+
+    # approximations
+    mask_less_than_1 = alphavalues < 1
+    mask_greater_than_1 = alphavalues > 1
+
+    S_tilde_less = compute_S_tilde_from_alpha(
+        alphavalues=alphavalues[mask_less_than_1], mu=mu, N=N
+    )
+    S_tilde_greater = compute_S_tilde_from_N_alpha_greater_than_one(
+        alpha=alphavalues[mask_greater_than_1], mu=mu, Nvalues=N
+    )
+
+    # plot
+    plt.figure(figsize=(8, 6))
+    plt.plot(alphavalues, S, label="$S$", color="black", linewidth=2)
+    plt.plot(
+        alphavalues[mask_less_than_1],
+        S_tilde_less,
+        "--",
+        label="$\\tilde{S}$ (for $\\alpha<1$)",
+        color="blue",
+    )
+    plt.plot(
+        alphavalues[mask_greater_than_1],
+        S_tilde_greater,
+        "--",
+        label="$\\tilde{S}$ (for $\\alpha>1$)",
+        color="red",
+    )
+
+    plt.xlabel("social earning efficiency $\\alpha$")
+    plt.ylabel("$S$")
+    plt.title("True $S$ and approximations $\\tilde{S}$")
+    plt.legend()
+    plt.grid(True)
+    plt.show()
+
 
 
 def main():
     #generate_figure_S_and_approx_when_alpha_less_than_beta()
-    generate_trait_per_individual_when_alpha_greater_than_beta()
+    #generate_trait_per_individual_when_alpha_greater_than_beta()
+    generate_combined_trait_per_individual()
     return
     alpha = 1.7
     beta = 1
