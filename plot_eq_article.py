@@ -41,7 +41,7 @@ def compute_S_from_N(*,alpha,mu,Nvalues):
     return S
 
 
-def compute_S_from_alpha(*, alphavalues,beta, mu, N):
+def compute_S_from_alpha(*, alphavalues, mu, N):
     S = np.array([compute_new_S(alpha, N, mu) for alpha in alphavalues])
     return S
 
@@ -330,6 +330,7 @@ def generate_side_by_side_figures():
     axes[0].set_title("True $S$ and $\\tilde{S}$ for $\\alpha<1$")
     axes[0].legend()
     axes[0].grid(True)
+    axes[0].set_yscale('log')
     
     # Right plot: α in (1,2)
     axes[1].plot(
@@ -351,6 +352,7 @@ def generate_side_by_side_figures():
     axes[1].set_title("True $S$ and $\\tilde{S}$ for $\\alpha>1$")
     axes[1].legend()
     axes[1].grid(True)
+    axes[1].set_yscale('log')
     
     plt.tight_layout()
     plt.show()
@@ -432,10 +434,10 @@ def generate_side_by_side_trait_per_individual():
 
 
 def main():
-    generate_side_by_side_trait_per_individual()
-    return
-    #generate_side_by_side_figures()
+    #generate_side_by_side_trait_per_individual()
     #return
+    generate_side_by_side_figures()
+    return
     alpha = 1.7
     beta = 1
     mu = 0.1
