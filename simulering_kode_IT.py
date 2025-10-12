@@ -184,7 +184,7 @@ def time_to_equilibrium(S, S_eq, tol=0.05): # Original tolerance tol=1e-2
     print(S_eq)
     for t, val in enumerate(S):
         print(f"   {val}")
-        if -(val - S_eq) <= tol * S_eq:
+        if abs(val - S_eq) <= tol * S_eq:
             return t
     return len(S) - 1
 

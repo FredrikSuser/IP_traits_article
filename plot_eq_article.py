@@ -41,7 +41,7 @@ def compute_S_from_N(*,alpha,mu,Nvalues):
     return S
 
 
-def compute_S_from_alpha(*, alphavalues,beta, mu, N):
+def compute_S_from_alpha(*, alphavalues, mu, N):
     S = np.array([compute_new_S(alpha, N, mu) for alpha in alphavalues])
     return S
 
@@ -131,7 +131,7 @@ def plot_S(S,S_approx,x,xlabel, s_approx_label):
     if S_approx is not None:  
         plt.plot(x, S_approx, linestyle='--', color='r', label=s_approx_label)
     plt.xlabel(xlabel)
-    plt.ylabel("Expected amount $S$ of culture at equilibrium")
+    plt.ylabel(" $E(S)$ at equilibrium")
     plt.title('')
     plt.legend()
     plt.grid()
@@ -241,7 +241,16 @@ def generate_figure_S_based_on_population():
     S = compute_S_from_N(alpha=alpha, mu=mu, Nvalues=Nvalues)
     S_tilde = compute_S_tilde_from_N(alpha=alpha, mu=mu, Nvalues=Nvalues)
     plot_S(S=S, S_approx=S_tilde, x = Nvalues, xlabel = 'population size $N, (\\alpha < 1)$, ', s_approx_label= '$\\tilde{S}$')
-    
+
+def generate_figure_S_based_on_population_alpha_greater_than_one():
+    alpha = 1.5
+    mu = 0.1
+    Nvalues = np.arange(0,100)
+    S = compute_S_from_N(alpha=alpha, mu=mu, Nvalues=Nvalues)
+    S_tilde = compute_S_tilde_from_N_alpha_greater_than_one(alpha=alpha, mu=mu, Nvalues=Nvalues)
+    plot_S(S=S, S_approx=S_tilde, x = Nvalues, xlabel = 'population size $N, (\\alpha < 1)$, ', s_approx_label= '$\\tilde{S}$')
+
+
     
 def generate_figure_popularity_distribution_alpha_greater_than_beta():
     alpha = 0.999
@@ -289,7 +298,7 @@ def generate_trait_per_individual_when_alpha_less_than_beta():
 def generate_side_by_side_figures():
     mu = 0.1
     N = 100
-    alphavalues = np.linspace(0.01, 2, 200)  # avoid 0 to prevent division issues
+    alphavalues = np.linspace(0.01, 1.5, 200)  # avoid 0 to prevent division issues
     
     
     # true S
@@ -427,15 +436,132 @@ def generate_side_by_side_trait_per_individual():
     
     plt.tight_layout()
     plt.show()
+    
+    
+def generate_combined_figure():
+    mu = 0.1
+    beta = 1
+    N_large = 1000
+    N_small = np.arange(0, 100)
+    alphavalues = np.linspace(0.01, 1.5, 200)  # avoid 0
+    mask_less_than_1 = alphavalues < 1
+    mask_greater_than_1 = alphavalues > 1
+
+    # =========================
+    # 1. Trait per individual
+    # =========================
+    S_trait = compute_S_from_alpha(alphavalues=alphavalues, mu=mu, N=N_large)
+    R_infty = compute_trait_per_individual_alpha(alphavalues=alphavalues, beta=beta, N=N_large, mu=mu)
+    R_over_S_true = R_infty / S_trait
+
+    R_over_S_approx_less = 1 / (
+        N_large * (1 / alphavalues[mask_less_than_1] - 1) *
+        np.log(1 / (1 - alphavalues[mask_less_than_1]))
+    )
+    R_over_S_approx_greater = 1 - 1 / alphavalues[mask_greater_than_1]
+
+    # =========================
+    # 2. S vs alpha
+    # =========================
+    N_mid = 100
+    S_alpha = compute_S_from_alpha(alphavalues=alphavalues, mu=mu, N=N_mid)
+    S_tilde_less = compute_S_tilde_from_alpha(
+        alphavalues=alphavalues[mask_less_than_1], mu=mu, N=N_mid
+    )
+    S_tilde_greater = compute_S_tilde_from_N_alpha_greater_than_one(
+        alpha=alphavalues[mask_greater_than_1], mu=mu, Nvalues=N_mid
+    )
+
+    # =========================
+    # 3. S vs population N
+    # =========================
+    alpha_less = 0.3
+    alpha_greater = 1.5
+
+    S_N_less = compute_S_from_N(alpha=alpha_less, mu=mu, Nvalues=N_small)
+    S_tilde_N_less = compute_S_tilde_from_N(alpha=alpha_less, mu=mu, Nvalues=N_small)
+
+    S_N_greater = compute_S_from_N(alpha=alpha_greater, mu=mu, Nvalues=N_small)
+    S_tilde_N_greater = compute_S_tilde_from_N_alpha_greater_than_one(alpha=alpha_greater, mu=mu, Nvalues=N_small)
+
+    # =========================
+    # Plotting: 3 rows × 2 columns
+    # =========================
+    fig, axes = plt.subplots(3, 2, figsize=(14, 18))
+    plt.subplots_adjust(hspace=0.4)
+
+    # ---- Row 1: Trait per individual ----
+    axes[0, 0].plot(alphavalues[mask_less_than_1], R_over_S_true[mask_less_than_1], color='black', lw=2, label=r'True $R_\infty/S$')
+    axes[0, 0].plot(alphavalues[mask_less_than_1], R_over_S_approx_less, '--', color='blue', label=r'Approx ($\alpha<1$)')
+    #axes[0, 0].set_xlabel(r'$\alpha$')
+    axes[0, 0].set_ylabel(r'$R_\infty/S$')
+    axes[0, 0].set_title(r'Trait per individual for $\alpha<1$')
+    axes[0, 0].set_yscale('log')
+    axes[0, 0].legend()
+    axes[0, 0].grid(True)
+
+    axes[0, 1].plot(alphavalues[mask_greater_than_1], R_over_S_true[mask_greater_than_1], color='black', lw=2, label=r'True $R_\infty/S$')
+    axes[0, 1].plot(alphavalues[mask_greater_than_1], R_over_S_approx_greater, '--', color='red', label=r'Approx ($\alpha>1$)')
+    #axes[0, 1].set_xlabel(r'$\alpha$')
+    axes[0, 1].set_ylabel(r'$R_\infty/S$')
+    axes[0, 1].set_title(r'Trait per individual for $\alpha>1$')
+    axes[0, 1].set_yscale('log')
+    axes[0, 1].legend()
+    axes[0, 1].grid(True)
+
+    # ---- Row 2: S vs alpha ----
+    axes[1, 0].plot(alphavalues[mask_less_than_1], S_alpha[mask_less_than_1], color='black', lw=2, label=r'True $S$')
+    axes[1, 0].plot(alphavalues[mask_less_than_1], S_tilde_less, '--', color='blue', label=r'$\tilde{S}$ ($\alpha<1$)')
+    axes[1, 0].set_xlabel(r' $\alpha$')
+    axes[1, 0].set_ylabel(r'$S$')
+    axes[1, 0].set_title(r'True $S$ and $\tilde{S}$ for $\alpha<1$')
+    axes[1, 0].set_yscale('log')
+    axes[1, 0].legend()
+    axes[1, 0].grid(True)
+
+    axes[1, 1].plot(alphavalues[mask_greater_than_1], S_alpha[mask_greater_than_1], color='black', lw=2, label=r'True $S$')
+    axes[1, 1].plot(alphavalues[mask_greater_than_1], S_tilde_greater, '--', color='red', label=r'$\tilde{S}$ ($\alpha>1$)')
+    #axes[1, 1].set_xlabel(r'Social earning efficiency $\alpha$')
+    axes[1, 1].set_ylabel(r'$S$')
+    axes[1, 1].set_title(r'True $S$ and $\tilde{S}$ for $\alpha>1$')
+    axes[1, 1].set_yscale('log')
+    axes[1, 1].legend()
+    axes[1, 1].grid(True)
+
+    # ---- Row 3: S vs population N ----
+    axes[2, 0].plot(N_small, S_N_less, color='black', lw=2, label=r'True $S$')
+    axes[2, 0].plot(N_small, S_tilde_N_less, '--', color='blue', label=r'$\tilde{S}$ ($\alpha<1$)')
+    axes[2, 0].set_xlabel(r' $N$')
+    axes[2, 0].set_ylabel(r'$S$')
+    axes[2, 0].set_title(r'$S$ and $\tilde{S}$ vs. $N$ for $\alpha=0.3$')
+    axes[2, 0].set_yscale('log')
+    axes[2, 0].legend()
+    axes[2, 0].grid(True)
+
+    axes[2, 1].plot(N_small, S_N_greater, color='black', lw=2, label=r'True $S$')
+    axes[2, 1].plot(N_small, S_tilde_N_greater, '--', color='red', label=r'$\tilde{S}$ ($\alpha>1$)')
+    #axes[2, 1].set_xlabel(r'Population size $N$')
+    axes[2, 1].set_ylabel(r'$S$')
+    axes[2, 1].set_title(r'$S$ and $\tilde{S}$ vs. $N$ for $\alpha=1.5$')
+    axes[2, 1].set_yscale('log')
+    axes[2, 1].legend()
+    axes[2, 1].grid(True)
+
+    plt.tight_layout()
+    
+    fig.savefig("combined_figure_test.pdf", format="pdf", bbox_inches="tight")
+    plt.show()
 
 
 
 
 def main():
-    generate_side_by_side_trait_per_individual()
-    return
+    generate_combined_figure()
     #generate_side_by_side_figures()
-    #return
+    #generate_side_by_side_trait_per_individual()
+    #generate_figure_S_based_on_population()
+    return
+    
     alpha = 1.7
     beta = 1
     mu = 0.1
