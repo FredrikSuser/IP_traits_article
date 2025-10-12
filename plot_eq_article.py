@@ -339,6 +339,7 @@ def generate_side_by_side_figures():
     axes[0].set_title("True $S$ and $\\tilde{S}$ for $\\alpha<1$")
     axes[0].legend()
     axes[0].grid(True)
+    axes[0].set_yscale('log')
     
     # Right plot: α in (1,2)
     axes[1].plot(
@@ -360,6 +361,7 @@ def generate_side_by_side_figures():
     axes[1].set_title("True $S$ and $\\tilde{S}$ for $\\alpha>1$")
     axes[1].legend()
     axes[1].grid(True)
+    axes[1].set_yscale('log')
     
     plt.tight_layout()
     plt.show()
