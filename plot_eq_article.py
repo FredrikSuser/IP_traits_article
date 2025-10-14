@@ -1,5 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
+import os
 
 
 def compute_S(alpha, beta, N,mu):
@@ -175,20 +176,26 @@ def plot_Z(Z,Z_approx,x,xlabel, Z_approx_label):
     plt.grid()
     plt.show()
     
-def plot_f(f, k_top,width_top, height_top):
-    k = np.arange(1,len(f)+1)
+def plot_f(f, k_top, width_top, height_top):
+    k = np.arange(1, len(f) + 1)
     delta_k = k - k_top
     v = delta_k / width_top
-    
+
     plt.figure(figsize=(8, 5))
     plt.plot(k, f, linestyle='-', color='b', label='$f$')
-    #plt.plot([k_top,k_top], [0,np.max(f)], linestyle='-', color='r', label='top')
-    #plt.plot(k, height_top*np.exp(-v*v/2),linestyle='-', color='g', label='gauss' )
-    plt.ylabel(" $f$ of culture at equilibrium")
+    # plt.plot([k_top, k_top], [0, np.max(f)], linestyle='-', color='r', label='top')
+    # plt.plot(k, height_top * np.exp(-v * v / 2), linestyle='-', color='g', label='gauss')
+    plt.ylabel("$f$ of culture at equilibrium")
     plt.xlabel("Trait Popularity $k$")
     plt.title("f from CAM model")
     plt.legend()
     plt.grid()
+
+    # ✅ Save the plot as a PDF in the user's Downloads folder
+    downloads_path = os.path.join(os.path.expanduser("~"), "Downloads", "f_from_CAM_model.pdf")
+    plt.savefig(downloads_path, format="pdf", bbox_inches="tight")
+    print(f"Plot saved to: {downloads_path}")
+
     plt.show()
     
 def plot_f_with_approx(f, f_approx):
@@ -253,8 +260,8 @@ def generate_figure_S_based_on_population_alpha_greater_than_one():
 
     
 def generate_figure_popularity_distribution_alpha_greater_than_beta():
-    alpha = 0.999
-    beta = 0.001
+    alpha = 0.90
+    beta = 0.45
     mu = 0.1
     N =100
     #f_old = compute_f_old(alpha=alpha, N=N, mu=mu)
@@ -266,7 +273,7 @@ def generate_figure_popularity_distribution_alpha_greater_than_beta():
     plot_f(f_new, k_top , width_top,height_top)
 
 def generate_figure_popularity_distribution_alpha_less_than_beta():
-    alpha = 0.8
+    alpha = 2.5
     beta = 1
     mu = 0.1
     N =100
@@ -493,72 +500,76 @@ def generate_combined_figure():
     plt.subplots_adjust(hspace=0.4)
 
     # ---- Row 1: Trait per individual ----
-    axes[0, 0].plot(alphavalues[mask_less_than_1], R_over_S_true[mask_less_than_1], color='black', lw=2, label=r'True $R_\infty/S$')
+    axes[0, 0].plot(alphavalues[mask_less_than_1], R_over_S_true[mask_less_than_1], color='black', lw=2, label=r'True $R_\infty/E(S)$')
     axes[0, 0].plot(alphavalues[mask_less_than_1], R_over_S_approx_less, '--', color='blue', label=r'Approx ($\alpha<1$)')
     #axes[0, 0].set_xlabel(r'$\alpha$')
-    axes[0, 0].set_ylabel(r'$R_\infty/S$')
-    axes[0, 0].set_title(r'Trait per individual for $\alpha<1$')
+    axes[0, 0].set_ylabel(r'$R_\infty/E(S)$')
+    #axes[0, 0].set_title(r'Trait per individual for $\alpha<1$')
     axes[0, 0].set_yscale('log')
     axes[0, 0].legend()
     axes[0, 0].grid(True)
 
-    axes[0, 1].plot(alphavalues[mask_greater_than_1], R_over_S_true[mask_greater_than_1], color='black', lw=2, label=r'True $R_\infty/S$')
+    axes[0, 1].plot(alphavalues[mask_greater_than_1], R_over_S_true[mask_greater_than_1], color='black', lw=2, label=r'True $R_\infty/E(S)$')
     axes[0, 1].plot(alphavalues[mask_greater_than_1], R_over_S_approx_greater, '--', color='red', label=r'Approx ($\alpha>1$)')
     #axes[0, 1].set_xlabel(r'$\alpha$')
-    axes[0, 1].set_ylabel(r'$R_\infty/S$')
-    axes[0, 1].set_title(r'Trait per individual for $\alpha>1$')
+    axes[0, 1].set_ylabel(r'$R_\infty/E(S)$')
+    #axes[0, 1].set_title(r'Trait per individual for $\alpha>1$')
     axes[0, 1].set_yscale('log')
     axes[0, 1].legend()
     axes[0, 1].grid(True)
 
     # ---- Row 2: S vs alpha ----
-    axes[1, 0].plot(alphavalues[mask_less_than_1], S_alpha[mask_less_than_1], color='black', lw=2, label=r'True $S$')
+    axes[1, 0].plot(alphavalues[mask_less_than_1], S_alpha[mask_less_than_1], color='black', lw=2, label=r'True $E(S)$')
     axes[1, 0].plot(alphavalues[mask_less_than_1], S_tilde_less, '--', color='blue', label=r'$\tilde{S}$ ($\alpha<1$)')
-    axes[1, 0].set_xlabel(r' $\alpha$')
-    axes[1, 0].set_ylabel(r'$S$')
-    axes[1, 0].set_title(r'True $S$ and $\tilde{S}$ for $\alpha<1$')
+    axes[1, 0].set_xlabel(r' $\alpha$', loc='left')
+    axes[1, 0].set_ylabel(r'$E(S)$')
+    #axes[1, 0].set_title(r'True $S$ and $\tilde{S}$ for $\alpha<1$')
     axes[1, 0].set_yscale('log')
     axes[1, 0].legend()
     axes[1, 0].grid(True)
 
-    axes[1, 1].plot(alphavalues[mask_greater_than_1], S_alpha[mask_greater_than_1], color='black', lw=2, label=r'True $S$')
+    axes[1, 1].plot(alphavalues[mask_greater_than_1], S_alpha[mask_greater_than_1], color='black', lw=2, label=r'True $E(S)$')
     axes[1, 1].plot(alphavalues[mask_greater_than_1], S_tilde_greater, '--', color='red', label=r'$\tilde{S}$ ($\alpha>1$)')
     #axes[1, 1].set_xlabel(r'Social earning efficiency $\alpha$')
-    axes[1, 1].set_ylabel(r'$S$')
-    axes[1, 1].set_title(r'True $S$ and $\tilde{S}$ for $\alpha>1$')
+    axes[1, 1].set_ylabel(r'$E(S)$')
+    #axes[1, 1].set_title(r'True $S$ and $\tilde{S}$ for $\alpha>1$')
     axes[1, 1].set_yscale('log')
     axes[1, 1].legend()
     axes[1, 1].grid(True)
 
     # ---- Row 3: S vs population N ----
-    axes[2, 0].plot(N_small, S_N_less, color='black', lw=2, label=r'True $S$')
+    axes[2, 0].plot(N_small, S_N_less, color='black', lw=2, label=r'True $E(S)$')
     axes[2, 0].plot(N_small, S_tilde_N_less, '--', color='blue', label=r'$\tilde{S}$ ($\alpha<1$)')
-    axes[2, 0].set_xlabel(r' $N$')
-    axes[2, 0].set_ylabel(r'$S$')
-    axes[2, 0].set_title(r'$S$ and $\tilde{S}$ vs. $N$ for $\alpha=0.3$')
+    axes[2, 0].set_xlabel(r' $N$', loc='left')
+    axes[2, 0].set_ylabel(r'$E(S)$')
+    #axes[2, 0].set_title(r'$S$ and $\tilde{S}$ vs. $N$ for $\alpha=0.3$')
     axes[2, 0].set_yscale('log')
     axes[2, 0].legend()
     axes[2, 0].grid(True)
 
-    axes[2, 1].plot(N_small, S_N_greater, color='black', lw=2, label=r'True $S$')
+    axes[2, 1].plot(N_small, S_N_greater, color='black', lw=2, label=r'True $E(S)$')
     axes[2, 1].plot(N_small, S_tilde_N_greater, '--', color='red', label=r'$\tilde{S}$ ($\alpha>1$)')
     #axes[2, 1].set_xlabel(r'Population size $N$')
-    axes[2, 1].set_ylabel(r'$S$')
-    axes[2, 1].set_title(r'$S$ and $\tilde{S}$ vs. $N$ for $\alpha=1.5$')
+    axes[2, 1].set_ylabel(r'$E(S)$')
+    #axes[2, 1].set_title(r'$S$ and $\tilde{S}$ vs. $N$ for $\alpha=1.5$')
     axes[2, 1].set_yscale('log')
     axes[2, 1].legend()
     axes[2, 1].grid(True)
 
     plt.tight_layout()
     
-    fig.savefig("combined_figure_test.pdf", format="pdf", bbox_inches="tight")
+    downloads_path = os.path.join(os.path.expanduser("~"), "Downloads", "combined_figure.pdf")
+    fig.savefig(downloads_path, format="pdf", bbox_inches="tight")
+    print(f"Figure saved to: {downloads_path}")
     plt.show()
 
 
 
 
 def main():
-    generate_combined_figure()
+    generate_figure_popularity_distribution_alpha_less_than_beta()
+    #generate_figure_popularity_distribution_alpha_greater_than_beta()
+    #generate_combined_figure()
     #generate_side_by_side_figures()
     #generate_side_by_side_trait_per_individual()
     #generate_figure_S_based_on_population()
