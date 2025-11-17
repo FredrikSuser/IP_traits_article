@@ -95,12 +95,12 @@ def compute_S_hat(alpha, beta,N,mu):
     S_hat = first_factor * second_factor
     return S_hat
     
-def compute_trait_per_individual(*,alpha, beta, N, mu):
+def compute_trait_per_individual(*,alpha, N, mu):
     f = compute_f_new(alpha, N, mu)
     return np.sum(f * (1 + np.arange(N))) / N
 
-def compute_trait_per_individual_alpha(*, alphavalues, beta, N,mu):
-    R_infty = np.array([compute_trait_per_individual(alpha=alpha, beta=beta, N=N,mu=mu) for alpha in alphavalues])
+def compute_trait_per_individual_alpha(*, alphavalues, N,mu):
+    R_infty = np.array([compute_trait_per_individual(alpha=alpha, N=N,mu=mu) for alpha in alphavalues])
     return R_infty
 
 def compute_R_infty_hat(alpha, beta, N,mu):
@@ -241,7 +241,7 @@ def generate_figure_S_and_approx_when_alpha_greater_than_beta():
     plot_S(S=S,S_approx = S_tilde,x=alphavalues,xlabel = '$\\alpha/\\beta$',s_approx_label= '$\\tilde{S}$') 
     
 
-def generate_figure_S_based_on_population():
+def generate_figure_S_based_on_population_when_alpha_smaller_than_one():
     alpha = 0.3
     mu = 0.1
     Nvalues = np.arange(0,100)
@@ -249,14 +249,14 @@ def generate_figure_S_based_on_population():
     S_tilde = compute_S_tilde_from_N(alpha=alpha, mu=mu, Nvalues=Nvalues)
     plot_S(S=S, S_approx=S_tilde, x = Nvalues, xlabel = 'population size $N, (\\alpha < 1)$, ', s_approx_label= '$\\tilde{S}$')
 
-def generate_figure_S_based_on_population_alpha_greater_than_one():
+
+def generate_figure_S_based_on_population_when_alpha_larger_than_one():
     alpha = 1.5
     mu = 0.1
     Nvalues = np.arange(0,100)
     S = compute_S_from_N(alpha=alpha, mu=mu, Nvalues=Nvalues)
     S_tilde = compute_S_tilde_from_N_alpha_greater_than_one(alpha=alpha, mu=mu, Nvalues=Nvalues)
-    plot_S(S=S, S_approx=S_tilde, x = Nvalues, xlabel = 'population size $N, (\\alpha < 1)$, ', s_approx_label= '$\\tilde{S}$')
-
+    plot_S(S=S, S_approx=S_tilde, x = Nvalues, xlabel = 'population size $N, (\\alpha > 1)$, ', s_approx_label= '$\\tilde{S}$')
 
     
 def generate_figure_popularity_distribution_alpha_greater_than_beta():
@@ -364,8 +364,8 @@ def generate_side_by_side_figures():
         color="red",
     )
     axes[1].set_xlabel("social earning efficiency $\\alpha$")
-    axes[1].set_ylabel("$S$")
-    axes[1].set_title("True $S$ and $\\tilde{S}$ for $\\alpha>1$")
+    axes[1].set_ylabel("$E(S)$")
+    axes[1].set_title("True $E(S)$ and $\\tilde{S}$ for $\\alpha>1$")
     axes[1].legend()
     axes[1].grid(True)
     axes[1].set_yscale('log')
@@ -378,14 +378,13 @@ def generate_side_by_side_figures():
 
 
 def generate_side_by_side_trait_per_individual():
-    beta = 1
     mu = 0.1
-    N = 1000
+    N = 100
     alphavalues = np.linspace(0.01, 2, 200)  # avoid 0 to prevent division by zero
-    
+
     # true values
-    S = compute_S_from_alpha(alphavalues=alphavalues, beta=beta, mu=mu, N=N)
-    R_infty = compute_trait_per_individual_alpha(alphavalues=alphavalues, beta=beta, N=N, mu=mu)
+    S = compute_S_from_alpha(alphavalues=alphavalues, mu=mu, N=N)
+    R_infty = compute_trait_per_individual_alpha(alphavalues=alphavalues, N=N, mu=mu)
     R_over_S_true = R_infty / S
     
     # masks
@@ -403,14 +402,14 @@ def generate_side_by_side_trait_per_individual():
     
     # Left panel: α in (0,1)
     axes[0].plot(
-        alphavalues[mask_less],
-        R_over_S_true[mask_less],
+        alphavalues[mask_less_than_1],
+        R_over_S_true[mask_less_than_1],
         label=r"$R_\infty / S$ (true)",
         color="black",
         linewidth=2,
     )
     axes[0].plot(
-        alphavalues[mask_less],
+        alphavalues[mask_less_than_1],
         R_over_S_approx_less,
         "--",
         label=r"approx ($\alpha < 1$)",
@@ -570,16 +569,156 @@ def generate_population_plot():
 
 
 
+def generate_side_by_side_S_and_R_over_S_vs_alpha():
+    mu = 0.1
+    N = 100
+    alphavalues = np.linspace(0.01, 2, 200)  # avoid 0 to prevent division by zero
+    
+
+    # true S
+    S = compute_S_from_alpha(alphavalues=alphavalues, mu=mu, N=N)
+    
+    # masks for splitting domain
+    mask_less_than_1 = alphavalues < 1
+    mask_greater_than_1 = alphavalues > 1
+    
+    # approximations
+    S_tilde_less = compute_S_tilde_from_alpha(
+        alphavalues=alphavalues[mask_less_than_1], mu=mu, N=N
+    )
+    S_tilde_greater = compute_S_tilde_from_N_alpha_greater_than_one(
+        alpha=alphavalues[mask_greater_than_1], mu=mu, Nvalues=N
+    )
+
+    # true values
+    S = compute_S_from_alpha(alphavalues=alphavalues, mu=mu, N=N)
+    R_infty = compute_trait_per_individual_alpha(alphavalues=alphavalues, N=N, mu=mu)
+    R_over_S_true = R_infty / S
+    
+    # masks
+    mask_less = alphavalues < 1
+    mask_greater = alphavalues > 1
+    
+    # approximations
+    R_over_S_approx_less = 1 / (
+        N * (1 / alphavalues[mask_less] - 1) * np.log(1 / (1 - alphavalues[mask_less]))
+    )
+    R_over_S_approx_greater = 1 - 1 / alphavalues[mask_greater]
+    
+  
+  
+  
+  
+    # create two subplots side by side
+    fig, axes = plt.subplots(2, 2, figsize=(14, 6))
+    
+
+
+    # Left plot: α in (0,1)
+    axes[0,0].plot(
+        alphavalues[mask_less],
+        S[mask_less],
+        label="$E(S)$",
+        color="black",
+        linewidth=2,
+    )
+    axes[0,0].plot(
+        alphavalues[mask_less],
+        S_tilde_less,
+        "--",
+        label="Approx $E(S)$",
+        color="blue",
+    )
+#    axes[0,0].set_xlabel("social earning efficiency $\\alpha$")
+    axes[0,0].set_xticklabels([])
+    axes[0,0].set_ylabel("$E(S)$")
+    axes[0,0].set_title("True and approximative $E(S)$ for $\\alpha<1$")
+    axes[0,0].legend()
+    axes[0,0].grid(True)
+    axes[0,0].set_yscale('log')
+    
+    # Right plot: α in (1,2)
+    axes[0,1].plot(
+        alphavalues[mask_greater_than_1],
+        S[mask_greater_than_1],
+        label="$E(S)$",
+        color="black",
+        linewidth=2,
+    )
+    axes[0,1].plot(
+        alphavalues[mask_greater_than_1],
+        S_tilde_greater,
+        "--",
+        label="approx $E(S)$",
+        color="blue",
+    )
+#    axes[0,1].set_xlabel("social earning efficiency $\\alpha$")
+    axes[0,1].set_xticklabels([])
+    axes[0,1].set_ylabel("$E(S)$")
+    axes[0,1].set_title("True and approx $E(S)$")
+    axes[0,1].legend()
+    axes[0,1].grid(True)
+    axes[0,1].set_yscale('log')
+
+
+
+    # Left panel: α in (0,1)
+    axes[1,0].plot(
+        alphavalues[mask_less],
+        R_over_S_true[mask_less],
+        label=r"$E(R) / E(S)$ (true)",
+        color="black",
+        linewidth=2,
+    )
+    axes[1,0].plot(
+        alphavalues[mask_less],
+        R_over_S_approx_less,
+        "--",
+        label=r"$E(R) / E(S)$ (approx)",
+        color="blue",
+    )
+    axes[1,0].set_xlabel(r"$\alpha$")
+    axes[1,0].set_ylabel(r"$E(R) / E(S)$")
+    axes[1,0].set_title(r"Proportion of traits per individual")
+    axes[1,0].legend()
+    axes[1,0].grid(True)
+    
+    # Right panel: α in (1,2)
+    axes[1,1].plot(
+        alphavalues[mask_greater],
+        R_over_S_true[mask_greater],
+        label=r"$E(R) / E(S)$ (true)",
+        color="black",
+        linewidth=2,
+    )
+    axes[1,1].plot(
+        alphavalues[mask_greater],
+        R_over_S_approx_greater,
+        "--",
+        label=r"approx",
+        color="blue",
+    )
+    axes[1,1].set_xlabel(r"$\alpha$")
+    axes[1,1].set_ylabel(r"$E(R) / E(S)$")
+    axes[1,1].set_title(r"Proportion of traits per individual")
+    axes[1,1].legend()
+    axes[1,1].grid(True)
+    
+    plt.tight_layout()
+    plt.show()
+
+
+
+
 
 def main():
-    
-    #generate_figure_popularity_distribution_alpha_less_than_beta()
-    #generate_figure_popularity_distribution_alpha_greater_than_beta()
-    generate_trait_and_alpha_plots()
-    #generate_population_plot()
-    #generate_side_by_side_figures()
+    generate_figure_S_based_on_population_when_alpha_smaller_than_one()
+    return
     #generate_side_by_side_trait_per_individual()
-    #generate_figure_S_based_on_population()
+    #return
+    generate_side_by_side_S_and_R_over_S_vs_alpha()
+    return
+    generate_side_by_side_figures()
     return
     
     alpha = 1.7

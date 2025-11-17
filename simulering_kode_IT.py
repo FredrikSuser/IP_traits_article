@@ -15,7 +15,7 @@ beta = 1
 alpha_values = [0.01, 0.1, 0.5, 0.9,1.2]
 beta_values = [0.20, 0.24, 0.25, 0.28]
 mu = 0.1
-tmax = 50000
+tmax = 15000
 
 # vary beta and keep alpha fixed as well.
 
@@ -50,7 +50,7 @@ tmax = 50000
 #     return Q
 
 
-def construct_new_tridiagonal_mtx(N,alpha, beta):
+def construct_new_tridiagonal_mtx(N,alpha):
     Q = np.zeros((N,N))
     
     for k in range(1, N + 1):
@@ -82,8 +82,12 @@ def compute_S(N, alpha, beta, mu, tmax):
 
 
 
-def compute_S_new(N, alpha, beta, mu, tmax):
-    q = construct_new_tridiagonal_mtx(N, alpha, beta)  # Q matrix
+def compute_S_new(N, alpha, mu, tmax):
+    q = construct_new_tridiagonal_mtx(N, alpha)  # Q matrix
+    eigvals = np.linalg.eigvals(q)
+    max_real_part = max(np.real(eigvals))
+#    convergence_rate = np.exp(max_real_part)
+#    print(f"max eigenvalue = {max(np.real(eigvals))}")
     mu_and_zeros = np.zeros(N)
     mu_and_zeros[0] = mu
     f0 = np.zeros(N)
@@ -92,20 +96,23 @@ def compute_S_new(N, alpha, beta, mu, tmax):
     def odesys(t, f):
         return q.T @ f + mu_and_zeros[:, None] * N
     t_eval = np.arange(tmax)  # Ensures 100 time points
-    sol = solve_ivp(odesys, (0, tmax - 1), f0, t_eval=t_eval, vectorized=True,jac=q.T, method= 'BDF')
+    sol = solve_ivp(odesys, (0, tmax - 1), f0, t_eval=t_eval, vectorized=True, jac=q.T, method= 'BDF')
 
     S = np.sum(sol.y, axis=0)  # shape = (tmax,)
-    return S
+    return S, max_real_part
     
 
 
-def compute_S_eq(N,alpha, beta,mu):
+def compute_f_new(alpha, N, mu):
     k = np.arange(1,N)
-    coeff_from_k_to_kplus1 =   alpha * k * (N - k) * (N - beta * k) / (beta * (k + 1) * (N * (N - 1) - alpha * k * (N - k)))
-    f_1 = mu *N/beta
+    coeff_from_k_to_kplus1 =   alpha *k/(k+1)*(N-k)/(N-1)
+    f_1 = mu *N
     f = np.cumprod(np.concatenate(([f_1], coeff_from_k_to_kplus1)))
-    S = f.sum()
-    return S
+    return f
+
+def compute_S_eq(N, alpha, mu):
+    f_new =  compute_f_new(alpha, N, mu)
+    return f_new.sum()
 
 def compute_loss_rate(N,alpha, beta, mu, tmax):
     for t in range(1,tmax):
@@ -176,44 +183,51 @@ def plot_loss_rate(alpha, N, beta, mu, tmax):
     plt.grid()
     plt.show()
     
-def time_to_equilibrium(S, S_eq, tol=0.05): # Original tolerance tol=1e-2
+def time_to_equilibrium(S, S_eq, tol): # Original tolerance tol=1e-2
     """
     Find the first time index where S is within tol of equilibrium.
     Returns len(S)-1 if never reached.
     """
-    print(S_eq)
+    print(f"S_eq = {S_eq}")
     for t, val in enumerate(S):
-        print(f"   {val}")
+        if t % 1000 == 0:
+            print(f"   {val}")
+            print(f"   abs = {abs(val - S_eq)}")
+            print(f"   tol * S_eq = {tol * S_eq}")
         if abs(val - S_eq) <= tol * S_eq:
             return t
     return len(S) - 1
 
 
-def plot_time_to_equilibrium(N, beta, mu, tmax, alpha_min=0, alpha_max=1.5, n_points=50, tol=1e-2):
+def plot_time_to_equilibrium(N, mu, tmax, alpha_min=0, alpha_max=2, n_points=50, tol=np.exp(-3)):
     """
     Plot time to equilibrium vs alpha.
     """
     alpha_values = np.linspace(alpha_min, alpha_max, n_points)
     times = []
+    times2 = []
 
     for alpha in alpha_values:
         # compute trajectory and equilibrium
-        S = compute_S_new(N, alpha, beta, mu, tmax)
-        S_eq = compute_S_eq(N, alpha, beta, mu)
+        S, max_real_part = compute_S_new(N, alpha, mu, tmax)
+        S_eq = compute_S_eq(N, alpha, mu)
         t_eq = time_to_equilibrium(S, S_eq, tol=tol)
         times.append(t_eq)
+        times2.append(-3/max_real_part)
 
     # plot
     plt.figure(figsize=(8, 5))
-    plt.plot(alpha_values, times, "o-", label="time to equilibrium")
+    plt.plot(alpha_values, np.array(times)/np.array(times2), "--", label="time to equilibrium")
+    #plt.plot(alpha_values, times2, "o-", label="time to equilibrium")
     plt.xlabel(r"social earning efficiency $\alpha$")
     plt.ylabel("time to equilibrium")
     plt.title("Time to reach equilibrium vs α")
+    #plt.yscale("log")
     plt.grid(True)
     plt.legend()
     plt.show()
 
-plot_time_to_equilibrium(N, beta, mu, tmax)
+plot_time_to_equilibrium(N, mu, tmax)
     
 
 #plot_S(alpha_values, N, beta, mu, tmax)
