@@ -217,8 +217,8 @@ def plot_time_to_equilibrium(N, mu, tmax, alpha_min=0, alpha_max=2, n_points=50,
 
     # plot
     plt.figure(figsize=(8, 5))
-    plt.plot(alpha_values, np.array(times)/np.array(times2), "--", label="time to equilibrium")
-    #plt.plot(alpha_values, times2, "o-", label="time to equilibrium")
+    #plt.plot(alpha_values, np.array(times)/np.array(times2), "--", label="time to equilibrium")
+    plt.plot(alpha_values, times2, "o-", label="time to equilibrium")
     plt.xlabel(r"social earning efficiency $\alpha$")
     plt.ylabel("time to equilibrium")
     plt.title("Time to reach equilibrium vs α")
