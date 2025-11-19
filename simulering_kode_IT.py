@@ -167,7 +167,7 @@ def plot_S_new(alpha_values, N, beta, mu, tmax):
     plt.legend()
     plt.grid()
     plt.legend(fontsize='small', labelspacing=0.3, handlelength=1.5, borderpad=0.5)
-    plt.savefig('plotalpha1.eps', format= 'eps')
+    plt.savefig('generate_images/plotalpha1.eps', format= 'eps')
     plt.show()
 
 def plot_loss_rate(alpha, N, beta, mu, tmax):

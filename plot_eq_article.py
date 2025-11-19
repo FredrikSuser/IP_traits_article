@@ -59,7 +59,7 @@ def plot_S(S, S_approx, x, xlabel, s_approx_label):
     plt.title('')
     plt.legend()
     plt.grid()
-    #plt.savefig('plotalphagreaterone.eps', format= 'eps')
+    #plt.savefig('generated_images/plotalphagreaterone.eps', format= 'eps')
     plt.show()
     
     
@@ -114,10 +114,9 @@ def plot_f(f, k_top, width_top, height_top):
     plt.legend()
     plt.grid()
 
-    # ✅ Save the plot as a PDF in the user's Downloads folder
-    downloads_path = os.path.join(os.path.expanduser("~"), "Downloads", "f_from_CAM_model.pdf")
-    plt.savefig(downloads_path, format="pdf", bbox_inches="tight")
-    print(f"Plot saved to: {downloads_path}")
+    path = 'generated_images/f_from_CAM_model.pdf'
+    plt.savefig(path, format="pdf", bbox_inches="tight")
+    print(f"Plot saved to: {path}")
 
     plt.show()
     
@@ -142,7 +141,7 @@ def plot_R(R,R_approx,x,xlabel, s_approx_label):
     plt.title('')
     plt.legend()
     plt.grid()
-    plt.savefig('plotRalphalessthanbeta1.png', dpi=500)
+    plt.savefig('generated_images/plotRalphalessthanbeta1.png', dpi=500)
     plt.show()
 
         
@@ -274,9 +273,9 @@ def generate_trait_and_alpha_plots():
     axes[1, 1].grid(True)
 
     plt.tight_layout()
-    downloads_path = os.path.join(os.path.expanduser("~"), "Downloads", "combinedalphaplot.pdf")
-    fig.savefig(downloads_path, format="pdf", bbox_inches="tight")
-    print(f"Saved plot to: {downloads_path}")
+    path = 'generated_images/combinedalphaplot.pdf'
+    fig.savefig(path, format="pdf", bbox_inches="tight")
+    print(f"Saved plot to: {path}")
     #plt.show()
 
 
