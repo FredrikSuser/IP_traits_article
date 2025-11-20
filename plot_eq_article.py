@@ -1,8 +1,35 @@
 import numpy as np
 import matplotlib.pyplot as plt
-import os
+import matplotlib
+import path
 
-def compute_f(N, alpha, mu):
+IMAGE_FOLDER = path.Path("generated_images")
+EXACT_LABEL = "exact value"
+EXACT_COLOR = "black"
+APPROXIMATION_LABEL = "approximation"
+APPROXIMATION_COLOR = "blue"
+
+def _wrap_funcions_by_case(
+        *,
+        func_alpha_small,
+        func_alpha_large
+    ):
+    def func(*, N: int | np.ndarray, alpha: float | np.ndarray, mu: float) -> np.ndarray:
+        alpha = np.asarray(alpha)
+        result_shape = np.broadcast(N, alpha, mu).shape
+        mask_alpha_small = alpha < 1
+        mask_alpha_large = alpha > 1
+        mask_alpha_small_broadcast = np.broadcast_to(mask_alpha_small, result_shape)
+        mask_alpha_large_broadcast = np.broadcast_to(mask_alpha_large, result_shape)
+        result = np.full(result_shape, np.nan)
+        if np.any(mask_alpha_small):
+            result[mask_alpha_small_broadcast] = func_alpha_small(N=N, alpha=alpha[mask_alpha_small], mu=mu)
+        if np.any(mask_alpha_large):
+            result[mask_alpha_large_broadcast] = func_alpha_large(N=N, alpha=alpha[mask_alpha_large], mu=mu)
+        return result
+    return func
+
+def compute_f(N: int, alpha: float | np.ndarray, mu: float) -> np.ndarray:
     alpha = np.asarray(alpha)[..., np.newaxis]
     k = np.arange(1,N)
     coeff_from_k_to_kplus1 = alpha * k/(k+1) * (N-k)/(N-1)
@@ -10,339 +37,154 @@ def compute_f(N, alpha, mu):
     f = np.cumprod(np.concatenate((f_1, coeff_from_k_to_kplus1), axis=-1), axis=-1)
     return f
 
-def compute_S(*, N, alpha, mu):
+def compute_f_approx(N: int, alpha: float | np.ndarray, mu: float) -> np.ndarray:
+    k = np.arange(1, N + 1)
+    if alpha < 1:
+        return mu * N * alpha**(k-1) / k
+    elif alpha > 1:
+        m = (1 - 1 / alpha) * N
+        sigma2 = N / alpha
+        C = mu * alpha**(3/2) / (alpha - 1) * (alpha * np.exp(-(1 - 1 / alpha))) ** (N - 1)
+        return C * np.exp(-(k - m)**2 / (2 * sigma2))
+    assert False
+
+def compute_S(*, N: int, alpha: float | np.ndarray, mu: float) -> np.ndarray:
     f =  compute_f(N=N, alpha=alpha, mu=mu)
     return f.sum(axis=-1)
 
-def compute_S_from_N(*, Nvalues, alpha, mu):
+def compute_S_from_N(*, Nvalues: np.ndarray, alpha: float, mu: float) -> np.ndarray:
     S = np.array([compute_S(N=N, alpha=alpha, mu=mu) for N in Nvalues])
     return S
 
-# Approximation function S tilde
-
-def compute_S_approx_for_alpha_smaller_than_one(*, N, alpha, mu):
-    assert np.all(alpha < 1)
+def _compute_S_approx_alpha_smaller_than_one(*, N: int | np.ndarray, alpha: float | np.ndarray, mu: float) -> np.ndarray:
     return (mu * N / alpha) * np.log(1 / (1 - alpha))
 
-def compute_S_approx_for_alpha_larger_than_one(*, N, alpha, mu):
-    assert np.all(alpha > 1)
+def _compute_S_approx_alpha_larger_than_one(*, N: int | np.ndarray, alpha: float | np.ndarray, mu: float) -> np.ndarray:
     numerator = mu * np.sqrt(2 * np.pi * N)
     denominator = 1 - (1 / alpha)
     base = alpha * np.exp(-(1 - (1 / alpha)))
-    return (numerator / denominator) * (base ** (N - 1))
+    return (numerator / denominator) * (base ** (N - 1))    
 
-def compute_S_approx(*, N, alpha, mu):
-    if np.all(alpha < 1):
-        return compute_S_approx_for_alpha_smaller_than_one(N=N, alpha=alpha, mu=mu)
-    elif np.all(alpha > 1):
-        return compute_S_approx_for_alpha_larger_than_one(N=N, alpha=alpha, mu=mu)
-    assert False
+compute_S_approx = _wrap_funcions_by_case(
+    func_alpha_small=_compute_S_approx_alpha_smaller_than_one,
+    func_alpha_large=_compute_S_approx_alpha_larger_than_one
+)
     
-def compute_trait_per_individual(*, N, alpha, mu):
-    f = compute_f(N, alpha, mu)
-    return np.sum(f * (1 + np.arange(N)), axis=-1) / N
+def compute_R_over_S(*, N: int, alpha: float | np.ndarray, mu: float) -> np.ndarray:
+    f = compute_f(N=N, alpha=alpha, mu=mu)
+    R = np.sum(f * (1 + np.arange(N)), axis=-1) / N
+    S = compute_S(N=N, alpha=alpha, mu=mu)
+    return R / S
 
-def compute_R_infty_approx(N, alpha, mu):
-    if np.all(alpha < 1):
-        return mu / (1 - alpha)
-    elif np.all(alpha > 1):
-        return (1 - 1 / alpha) * compute_S_approx_for_alpha_larger_than_one(N=N, alpha=alpha, mu=mu)
-    assert False
+def _compute_R_over_S_approx_alpha_smaller_than_one(N: int | np.ndarray, alpha: float | np.ndarray, mu: float) -> np.ndarray:
+    return mu / (1 - alpha) / _compute_S_approx_alpha_smaller_than_one(N=N, alpha=alpha, mu=mu) 
 
-def plot_S(S, S_approx, x, xlabel, s_approx_label):
+def _compute_R_over_S_approx_alpha_larger_than_one(N: int | np.ndarray, alpha: float | np.ndarray, mu: float) -> float | np.ndarray:
+    return 1 - 1 / alpha
+
+compute_R_over_S_approx = _wrap_funcions_by_case(
+    func_alpha_small=_compute_R_over_S_approx_alpha_smaller_than_one,
+    func_alpha_large=_compute_R_over_S_approx_alpha_larger_than_one
+)
+
+def save_figure(filename: str) -> None:
+    path = IMAGE_FOLDER / filename
+    plt.savefig(path, bbox_inches='tight')
+    print(f"Saved plot to: {path}")
+
+def plot_S(S, S_approx, x):
     plt.figure(figsize=(8, 5))
-    plt.plot(x, S, linestyle='-', color='b', label='$S$')
-    if S_approx is not None:  
-        plt.plot(x, S_approx, linestyle='--', color='r', label=s_approx_label)
-    plt.xlabel(xlabel)
-    plt.ylabel("$E(S)$ at equilibrium")
+    plt.plot(x, S, label=EXACT_LABEL, color=EXACT_COLOR, linewidth=2)
+    if S_approx is not None:
+        plt.plot(x, S_approx, linestyle='--', label=APPROXIMATION_LABEL, color=APPROXIMATION_COLOR)
+    plt.xlabel('population size $N$')
+    plt.ylabel('expected amount of culture $E(S)$')
     plt.title('')
     plt.legend()
     plt.grid()
-    #plt.savefig('generated_images/plotalphagreaterone.eps', format= 'eps')
-    plt.show()
-    
-    
-# def plot_S2(S_hat, tvalues, alpha, beta, mu, N):
-#     plt.plot(S_hat, tvalues ,alpha, beta, mu,N)    
-#     plt.figure(figsize=(8, 5))
-#     plt.plot(tvalues, S_hat, linestyle='-', color='b', label='$S$')  # Added tvalues as x-axis
-#     plt.xlabel("t")  # Added x-axis label
-#     plt.ylabel("Expected amount $S$ of culture at equilibrium")
-#     plt.title('')
-#     plt.legend()
-#     plt.grid()
-#     plt.show()
-    
-    
-
-    
-# def plot_S_test(S,x,xlabel):
-#     plt.figure(figsize=(8, 5))
-#     plt.plot(x, S, linestyle='-', color='b', label='$S$')
-#     plt.xlabel(xlabel)
-#     plt.ylabel("Expected amount $S$ of culture at equilibrium")
-#     plt.title("S from formula")
-#     plt.legend()
-#     plt.grid()
-#     plt.show()
-
-# def plot_Z(Z,Z_approx,x,xlabel, Z_approx_label):
-#     plt.figure(figsize=(8, 5))
-#     plt.plot(x, Z, linestyle='-', color='b', label='$Z$')
-#     if Z_approx is not None:  
-#         plt.plot(x, Z_approx, linestyle='--', color='r', label=Z_approx_label)
-#     plt.xlabel(xlabel)
-#     plt.ylabel("Expected amount of culture per individual")
-#     plt.title('')
-#     plt.legend()
-#     plt.grid()
-#     plt.show()
-    
-def plot_f(f, k_top, width_top, height_top):
-    k = np.arange(1, len(f) + 1)
-    delta_k = k - k_top
-    v = delta_k / width_top
-
-    plt.figure(figsize=(8, 5))
-    plt.plot(k, f, linestyle='-', color='b', label='$f$')
-    plt.plot([k_top, k_top], [0, np.max(f)], linestyle='-', color='r', label='top')
-    plt.plot(k, height_top * np.exp(-v * v / 2), linestyle='-', color='g', label='gauss')
-    plt.ylabel("$f$ of culture at equilibrium")
-    plt.xlabel("Trait Popularity $k$")
-    plt.title("f from CAM model")
-    plt.legend()
-    plt.grid()
-
-    path = 'generated_images/f_from_CAM_model.pdf'
-    plt.savefig(path, format="pdf", bbox_inches="tight")
-    print(f"Plot saved to: {path}")
-
-    plt.show()
-    
+    plt.tight_layout()
+            
 def plot_f_with_approx(f, f_approx):
-    k = np.arange(1,len(f)+1)    
-    plt.figure(figsize=(8, 5))
-    plt.plot(k, f, linestyle='-', color='b', label='$f$')
-    plt.plot(k, f_approx, linestyle='-', color='g', label='f_approx' )
-    plt.ylabel(" $f$ of culture at equilibrium")
-    plt.title("f from formula")
+    assert len(f) == len(f_approx)
+    k = np.arange(1, len(f) + 1)
+    fig = plt.figure(figsize=(8, 5))
+    plt.gca().yaxis.set_major_formatter(matplotlib.ticker.ScalarFormatter(useMathText=True))
+    plt.plot(k, f, label=EXACT_LABEL, color=EXACT_COLOR, linewidth=2)
+    plt.plot(k, f_approx, linestyle='--', label=APPROXIMATION_LABEL, color=APPROXIMATION_COLOR)
+    plt.xlabel("popularity $k$")
+    plt.ylabel("expected frequency $E(f_k)$")
     plt.legend()
     plt.grid()
-    plt.show()
-    
-def plot_R(R,R_approx,x,xlabel, s_approx_label):
-    plt.figure(figsize=(8, 5))
-    plt.plot(x, R, linestyle='-', color='b', label='$S$')
-    if R_approx is not None:  
-        plt.plot(x, R_approx, linestyle='--', color='r', label=s_approx_label)
-    plt.xlabel(xlabel)
-    plt.ylabel("Expected amount $S$ of culture at equilibrium")
-    plt.title('')
-    plt.legend()
-    plt.grid()
-    plt.savefig('generated_images/plotRalphalessthanbeta1.png', dpi=500)
-    plt.show()
-
-        
-def _generate_figure_S_vs_N(*, Nmax, alpha, mu):
+    plt.tight_layout()
+ 
+def _generate_figure_S_vs_N(*, Nmax: int, alpha: float, mu: float) -> None:
     Nvalues = np.arange(0, Nmax)
     S = compute_S_from_N(Nvalues=Nvalues, alpha=alpha, mu=mu)
-    S_tilde = compute_S_approx(N=Nvalues, alpha=alpha, mu=mu)
-    plot_S(S=S, S_approx=S_tilde, x = Nvalues, xlabel = f'population size $N, (\\alpha = {alpha})$, ', s_approx_label= '$\\tilde{S}$')
+    S_approx = compute_S_approx(N=Nvalues, alpha=alpha, mu=mu)
+    plot_S(S=S, S_approx=S_approx, x=Nvalues)
+    save_figure(f"S_vs_N_alpha{alpha}_mu{mu}.pdf")
 
-def generate_figure_S_vs_N_when_alpha_smaller_than_one():
+def generate_figure_S_vs_N_when_alpha_smaller_than_one() -> None:
     Nmax = 100
-    alpha = 0.3
+    alpha = 0.8
     mu = 0.1
     _generate_figure_S_vs_N(Nmax=Nmax, alpha=alpha, mu=mu)
 
-def generate_figure_S_vs_N_when_alpha_larger_than_one():
+def generate_figure_S_vs_N_when_alpha_larger_than_one() -> None:
     Nmax = 100
     alpha = 1.5
     mu = 0.1
     _generate_figure_S_vs_N(Nmax=Nmax, alpha=alpha, mu=mu)
-    
-def generate_figure_popularity_distribution_alpha_greater_than_beta():
-    alpha = 2
-    beta = 1
-    mu = 0.1
-    N =100
-    f = compute_f(N=N, alpha=alpha, mu=mu)
-    k_top= (1- beta/alpha)*(N-1)+1
-    height_top = 1/k_top *mu*N/beta * (alpha/(np.exp(1)*beta) * np.exp(beta/alpha))**(N-1) * np.sqrt(alpha/beta) 
-    width_top = np.sqrt((N-1)*beta/alpha)
-    plot_f(f, k_top , width_top,height_top)
 
-def generate_figure_popularity_distribution_alpha_less_than_beta():
-    alpha = 2
-    beta = 1
-    mu = 0.1
-    N =100
+def _generate_figure_popularity_distribution(*, N: int, alpha: float, mu: float) -> None:
     f = compute_f(N=N, alpha=alpha, mu=mu)
-    k = np.arange(1,N+1)
-    f_approx = mu* N / (k * beta) * (alpha/beta)**(k-1)
+    f_approx = compute_f_approx(N=N, alpha=alpha, mu=mu)
     plot_f_with_approx(f, f_approx)
-    
+    save_figure(f"popularity_distribution_N{N}_alpha{alpha}_mu{mu}.pdf")
 
-# def generate_trait_per_individual_when_alpha_greater_than_beta():
-#     beta = 1
-#     mu = 0.1
-#     N =100
-#     alphavalues = np.arange(1.01, 1.5, 0.01)
-#     R_infty = compute_trait_per_individual_alpha(alphavalues = alphavalues, beta=beta, N=N,mu=mu)
-#     R_infty_hat = compute_R_infty_hat(alpha=alphavalues, beta=beta, N=N, mu=mu)
-#     plot_R(R = R_infty, R_approx = R_infty_hat, x=alphavalues, xlabel = '$\\alpha/\\beta$', s_approx_label='$\\hat{R}$')    
-    
-    
-# def generate_trait_per_individual_when_alpha_less_than_beta():
-#     beta = 1
-#     mu = 0.1
-#     N =100
-#     alphavalues = np.arange(0.01, 1, 0.01)
-#     R_infty = compute_trait_per_individual_alpha(alphavalues = alphavalues, beta=beta, N=N,mu=mu)
-#     R_infty_hat = compute_R_infty_hat_alpha_less_beta(alpha =alphavalues, beta=beta, N=N, mu=mu)
-#     plot_R(R = R_infty, R_approx = R_infty_hat, x=alphavalues, xlabel = '$\\alpha/\\beta$', s_approx_label='$\\hat{R}$')
-    
+def generate_figure_popularity_distribution_alpha_larger_than_one() -> None:
+    _generate_figure_popularity_distribution(N=100, alpha=2, mu=0.1)
 
-def generate_trait_and_alpha_plots():
-    mu = 0.1
-    beta = 1
-    N_large = 1000
-    N_mid = 100
-    alphavalues = np.linspace(0.01, 1.5, 200)
+def generate_figure_popularity_distribution_alpha_smaller_than_one() -> None:
+    _generate_figure_popularity_distribution(N=100, alpha=0.9, mu=0.1)
 
-    mask_less_than_1 = alphavalues < 1
-    mask_greater_than_1 = alphavalues > 1
-
-    # ===== Row 1: Trait per individual =====
-    S_trait = compute_S(N=N_large, alpha=alphavalues, mu=mu)
-    R_infty = compute_trait_per_individual(N=N_large, alpha=alphavalues, mu=mu)
-    R_over_S_true = R_infty / S_trait
-
-    R_over_S_approx_less = 1 / (
-        N_large * (1 / alphavalues[mask_less_than_1] - 1) *
-        np.log(1 / (1 - alphavalues[mask_less_than_1]))
-    )
-    R_over_S_approx_greater = 1 - 1 / alphavalues[mask_greater_than_1]
-
-    # ===== Row 2: S vs alpha =====
-    S_alpha = compute_S(N=N_mid, alpha=alphavalues, mu=mu)
-    S_tilde_less = compute_S_approx(
-        N=N_mid, alpha=alphavalues[mask_less_than_1], mu=mu
-    )
-    S_tilde_greater = compute_S_approx(
-        N=N_mid, alpha=alphavalues[mask_greater_than_1], mu=mu
-    )
-
-    # ===== Plotting (2 rows × 2 columns) =====
-    fig, axes = plt.subplots(2, 2, figsize=(14, 12))
-    plt.subplots_adjust(hspace=0.4)
-
-    # Row 1 left
-    axes[0, 0].plot(alphavalues[mask_less_than_1], R_over_S_true[mask_less_than_1], lw=2, label='True R∞/E(S)')
-    axes[0, 0].plot(alphavalues[mask_less_than_1], R_over_S_approx_less, '--', label='Approx (α<1)')
-    axes[0, 0].set_ylabel('R∞/E(S)')
-    axes[0, 0].set_yscale('log')
-    axes[0, 0].legend()
-    axes[0, 0].grid(True)
-
-    # Row 1 right
-    axes[0, 1].plot(alphavalues[mask_greater_than_1], R_over_S_true[mask_greater_than_1], lw=2, label='True R∞/E(S)')
-    axes[0, 1].plot(alphavalues[mask_greater_than_1], R_over_S_approx_greater, '--', label='Approx (α>1)')
-    axes[0, 1].set_ylabel('R∞/E(S)')
-    axes[0, 1].set_yscale('log')
-    axes[0, 1].legend()
-    axes[0, 1].grid(True)
-
-    # Row 2 left
-    axes[1, 0].plot(alphavalues[mask_less_than_1], S_alpha[mask_less_than_1], lw=2, label='True E(S)')
-    axes[1, 0].plot(alphavalues[mask_less_than_1], S_tilde_less, '--', label='S~ (α<1)')
-    axes[1, 0].set_xlabel('α')
-    axes[1, 0].set_ylabel('E(S)')
-    axes[1, 0].set_yscale('log')
-    axes[1, 0].legend()
-    axes[1, 0].grid(True)
-
-    # Row 2 right
-    axes[1, 1].plot(alphavalues[mask_greater_than_1], S_alpha[mask_greater_than_1], lw=2, label='True E(S)')
-    axes[1, 1].plot(alphavalues[mask_greater_than_1], S_tilde_greater, '--', label='S~ (α>1)')
-    axes[1, 1].set_ylabel('E(S)')
-    axes[1, 1].set_yscale('log')
-    axes[1, 1].legend()
-    axes[1, 1].grid(True)
-
-    plt.tight_layout()
-    path = 'generated_images/combinedalphaplot.pdf'
-    fig.savefig(path, format="pdf", bbox_inches="tight")
-    print(f"Saved plot to: {path}")
-    #plt.show()
-
-
-def generate_side_by_side_S_and_R_over_S_vs_alpha():
+def generate_things_vs_alpha() -> None:
     mu = 0.1
     N = 100
     alphavalues = np.linspace(0.01, 2, 200)  # avoid 0 to prevent division by zero
-    
 
-    # true S
     S = compute_S(N=N, alpha=alphavalues, mu=mu)
+    S_approx = compute_S_approx(N=N, alpha=alphavalues, mu=mu)
     
     # masks for splitting domain
     mask_less_than_1 = alphavalues < 1
     mask_greater_than_1 = alphavalues > 1
     
-    # approximations
-    S_tilde_less = compute_S_approx(
-        N=N, alpha=alphavalues[mask_less_than_1], mu=mu
-    )
-    S_tilde_greater = compute_S_approx(
-        N=N, alpha=alphavalues[mask_greater_than_1], mu=mu
-    )
-
-    # true values
-    S = compute_S(N=N, alpha=alphavalues, mu=mu)
-    R_infty = compute_trait_per_individual(N=N, alpha=alphavalues, mu=mu)
-    R_over_S_true = R_infty / S
-    
-    # masks
-    mask_less = alphavalues < 1
-    mask_greater = alphavalues > 1
-    
-    # approximations
-    R_over_S_approx_less = 1 / (
-        N * (1 / alphavalues[mask_less] - 1) * np.log(1 / (1 - alphavalues[mask_less]))
-    )
-    R_over_S_approx_greater = 1 - 1 / alphavalues[mask_greater]
-    
-  
-  
-  
+    R_over_S_true = compute_R_over_S(N=N, alpha=alphavalues, mu=mu)
+    R_over_S_approx = compute_R_over_S_approx(N=N, alpha=alphavalues, mu=mu)
   
     # create two subplots side by side
     fig, axes = plt.subplots(2, 2, figsize=(14, 6))
     
-
-
     # Left plot: α in (0,1)
     axes[0,0].plot(
-        alphavalues[mask_less],
-        S[mask_less],
-        label="$E(S)$",
-        color="black",
+        alphavalues[mask_less_than_1],
+        S[mask_less_than_1],
+        label=EXACT_LABEL,
+        color=EXACT_COLOR,
         linewidth=2,
     )
     axes[0,0].plot(
-        alphavalues[mask_less],
-        S_tilde_less,
+        alphavalues[mask_less_than_1],
+        S_approx[mask_less_than_1],
         "--",
-        label="Approx $E(S)$",
-        color="blue",
+        label=APPROXIMATION_LABEL,
+        color=APPROXIMATION_COLOR,
     )
 #    axes[0,0].set_xlabel("social earning efficiency $\\alpha$")
     axes[0,0].set_xticklabels([])
     axes[0,0].set_ylabel("$E(S)$")
-    axes[0,0].set_title("True and approximative $E(S)$ for $\\alpha<1$")
+    axes[0,0].set_title("Total amount of culture")
     axes[0,0].legend()
     axes[0,0].grid(True)
     axes[0,0].set_yscale('log')
@@ -351,43 +193,41 @@ def generate_side_by_side_S_and_R_over_S_vs_alpha():
     axes[0,1].plot(
         alphavalues[mask_greater_than_1],
         S[mask_greater_than_1],
-        label="$E(S)$",
-        color="black",
+        label=EXACT_LABEL,
+        color=EXACT_COLOR,
         linewidth=2,
     )
     axes[0,1].plot(
         alphavalues[mask_greater_than_1],
-        S_tilde_greater,
+        S_approx[mask_greater_than_1],
         "--",
-        label="approx $E(S)$",
-        color="blue",
+        label=APPROXIMATION_LABEL,
+        color=APPROXIMATION_COLOR,
     )
 #    axes[0,1].set_xlabel("social earning efficiency $\\alpha$")
     axes[0,1].set_xticklabels([])
     axes[0,1].set_ylabel("$E(S)$")
-    axes[0,1].set_title("True and approx $E(S)$")
+    axes[0,1].set_title("Total amount of culture")
     axes[0,1].legend()
     axes[0,1].grid(True)
     axes[0,1].set_yscale('log')
 
-
-
     # Left panel: α in (0,1)
     axes[1,0].plot(
-        alphavalues[mask_less],
-        R_over_S_true[mask_less],
-        label=r"$E(R) / E(S)$ (true)",
-        color="black",
+        alphavalues[mask_less_than_1],
+        R_over_S_true[mask_less_than_1],
+        label=EXACT_LABEL,
+        color=EXACT_COLOR,
         linewidth=2,
     )
     axes[1,0].plot(
-        alphavalues[mask_less],
-        R_over_S_approx_less,
+        alphavalues[mask_less_than_1],
+        R_over_S_approx[mask_less_than_1],
         "--",
-        label=r"$E(R) / E(S)$ (approx)",
-        color="blue",
+        label=APPROXIMATION_LABEL,
+        color=APPROXIMATION_COLOR,
     )
-    axes[1,0].set_xlabel(r"$\alpha$")
+    axes[1,0].set_xlabel(r"social learning efficiency $\alpha$")
     axes[1,0].set_ylabel(r"$E(R) / E(S)$")
     axes[1,0].set_title(r"Proportion of traits per individual")
     axes[1,0].legend()
@@ -395,41 +235,36 @@ def generate_side_by_side_S_and_R_over_S_vs_alpha():
     
     # Right panel: α in (1,2)
     axes[1,1].plot(
-        alphavalues[mask_greater],
-        R_over_S_true[mask_greater],
-        label=r"$E(R) / E(S)$ (true)",
-        color="black",
+        alphavalues[mask_greater_than_1],
+        R_over_S_true[mask_greater_than_1],
+        label=EXACT_LABEL,
+        color=EXACT_COLOR,
         linewidth=2,
     )
     axes[1,1].plot(
-        alphavalues[mask_greater],
-        R_over_S_approx_greater,
+        alphavalues[mask_greater_than_1],
+        R_over_S_approx[mask_greater_than_1],
         "--",
-        label=r"approx",
-        color="blue",
+        label=APPROXIMATION_LABEL,
+        color=APPROXIMATION_COLOR,
     )
-    axes[1,1].set_xlabel(r"$\alpha$")
+    axes[1,1].set_xlabel(r"social learning efficiency $\alpha$")
     axes[1,1].set_ylabel(r"$E(R) / E(S)$")
     axes[1,1].set_title(r"Proportion of traits per individual")
     axes[1,1].legend()
     axes[1,1].grid(True)
     
     plt.tight_layout()
-#    plt.show()
+    save_figure(f"things_vs_alpha_N{N}_mu{mu}.pdf")
 
 
-
-
-
-def main():
-    #generate_figure_popularity_distribution_alpha_greater_than_beta()
-    generate_figure_popularity_distribution_alpha_less_than_beta()
-    ###generate_figure_S_vs_N_when_alpha_smaller_than_one()
-    ###generate_figure_S_vs_N_when_alpha_larger_than_one()
-    ###generate_side_by_side_S_and_R_over_S_vs_alpha() # Fin figur
-    ###generate_trait_and_alpha_plots() # Likadan som den fina figuren men lite mindre fin
+def main() -> None:
+    generate_figure_popularity_distribution_alpha_smaller_than_one()
+    generate_figure_popularity_distribution_alpha_larger_than_one()
+    generate_figure_S_vs_N_when_alpha_smaller_than_one()
+    generate_figure_S_vs_N_when_alpha_larger_than_one()
+    generate_things_vs_alpha()
     plt.show()
-    return    
     
 if __name__ == '__main__':
     main()
