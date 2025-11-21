@@ -2,6 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib
 import path
+import scipy
 
 IMAGE_FOLDER = path.Path("generated_images")
 EXACT_LABEL = "exact value"
@@ -87,41 +88,61 @@ compute_R_over_S_approx = _wrap_funcions_by_case(
     func_alpha_large=_compute_R_over_S_approx_alpha_larger_than_one
 )
 
+def compute_Q_bar(*, N: int, alpha: float | np.ndarray) -> np.ndarray:
+    Q = np.zeros(np.shape(alpha) + (N + 1, N + 1))
+    k = np.arange(N)
+    alpha = np.asarray(alpha)[..., np.newaxis]
+    Q[..., k + 1, k] = k + 1
+    Q[..., k, k + 1] = alpha * k * (N - k) / (N - 1)
+    Q[..., np.arange(N + 1), np.arange(N + 1)] = -np.sum(Q, axis=-1)
+
+    assert np.linalg.norm(Q.sum(axis=-1)) < 1e-10
+    return Q[..., 1:, 1:]
+
+def symmetrized_tridiagonal_matrix(A):
+    # See https://en.wikipedia.org/wiki/Tridiagonal_matrix#Similarity_to_symmetric_tridiagonal_matrix
+    N = np.shape(A)[-1]
+    k = np.arange(N - 1)
+    superdiagonal = A[..., k, k + 1]
+    subdiagonal = A[..., k + 1, k]
+    product = superdiagonal * subdiagonal
+    assert np.all(product > 0)
+    subdiagonal_sym = np.sign(superdiagonal) * np.sqrt(product)
+    B = np.copy(A)
+    B[..., k, k + 1] = subdiagonal_sym
+    B[..., k + 1, k] = subdiagonal_sym
+    return B
+
+def compute_time_to_convergence(*, N: int, alpha: float | np.ndarray) -> np.ndarray:
+    Q_bar = compute_Q_bar(N=N, alpha=alpha)
+    B = symmetrized_tridiagonal_matrix(Q_bar)
+    eigvals = np.linalg.eigvalsh(B)
+    eigvals = np.sort(eigvals)
+    max_real_part = np.max(eigvals, axis=-1)
+    return -3 / max_real_part # TODO: Fix the arbitrary factor 3
+
 def save_figure(filename: str) -> None:
     path = IMAGE_FOLDER / filename
     plt.savefig(path, bbox_inches='tight')
     print(f"Saved plot to: {path}")
 
-def plot_S(S, S_approx, x):
+def plot_with_approximation(*, axis, x, y, y_approx):
+    axis.plot(x, y, label=EXACT_LABEL, color=EXACT_COLOR, linewidth=2)
+    if y_approx is not None:
+        axis.plot(x, y_approx, "--", label=APPROXIMATION_LABEL, color=APPROXIMATION_COLOR)
+ 
+def _generate_figure_S_vs_N(*, Nmax: int, alpha: float, mu: float) -> None:
+    Nvalues = np.arange(0, Nmax)
+    S = compute_S_from_N(Nvalues=Nvalues, alpha=alpha, mu=mu)
+    S_approx = compute_S_approx(N=Nvalues, alpha=alpha, mu=mu)
     plt.figure(figsize=(8, 5))
-    plt.plot(x, S, label=EXACT_LABEL, color=EXACT_COLOR, linewidth=2)
-    if S_approx is not None:
-        plt.plot(x, S_approx, linestyle='--', label=APPROXIMATION_LABEL, color=APPROXIMATION_COLOR)
+    plot_with_approximation(axis=plt.gca(), x=Nvalues, y=S, y_approx=S_approx)
     plt.xlabel('population size $N$')
     plt.ylabel('expected amount of culture $E(S)$')
     plt.title('')
     plt.legend()
     plt.grid()
     plt.tight_layout()
-            
-def plot_f_with_approx(f, f_approx):
-    assert len(f) == len(f_approx)
-    k = np.arange(1, len(f) + 1)
-    fig = plt.figure(figsize=(8, 5))
-    plt.gca().yaxis.set_major_formatter(matplotlib.ticker.ScalarFormatter(useMathText=True))
-    plt.plot(k, f, label=EXACT_LABEL, color=EXACT_COLOR, linewidth=2)
-    plt.plot(k, f_approx, linestyle='--', label=APPROXIMATION_LABEL, color=APPROXIMATION_COLOR)
-    plt.xlabel("popularity $k$")
-    plt.ylabel("expected frequency $E(f_k)$")
-    plt.legend()
-    plt.grid()
-    plt.tight_layout()
- 
-def _generate_figure_S_vs_N(*, Nmax: int, alpha: float, mu: float) -> None:
-    Nvalues = np.arange(0, Nmax)
-    S = compute_S_from_N(Nvalues=Nvalues, alpha=alpha, mu=mu)
-    S_approx = compute_S_approx(N=Nvalues, alpha=alpha, mu=mu)
-    plot_S(S=S, S_approx=S_approx, x=Nvalues)
     save_figure(f"S_vs_N_alpha{alpha}_mu{mu}.pdf")
 
 def generate_figure_S_vs_N_when_alpha_smaller_than_one() -> None:
@@ -139,7 +160,15 @@ def generate_figure_S_vs_N_when_alpha_larger_than_one() -> None:
 def _generate_figure_popularity_distribution(*, N: int, alpha: float, mu: float) -> None:
     f = compute_f(N=N, alpha=alpha, mu=mu)
     f_approx = compute_f_approx(N=N, alpha=alpha, mu=mu)
-    plot_f_with_approx(f, f_approx)
+    k = np.arange(1, len(f) + 1)
+    plt.figure(figsize=(8, 5))
+    plt.gca().yaxis.set_major_formatter(matplotlib.ticker.ScalarFormatter(useMathText=True))
+    plot_with_approximation(axis=plt.gca(), x=k, y=f, y_approx=f_approx)
+    plt.xlabel("popularity $k$")
+    plt.ylabel("expected frequency $E(f_k)$")
+    plt.legend()
+    plt.grid()
+    plt.tight_layout()
     save_figure(f"popularity_distribution_N{N}_alpha{alpha}_mu{mu}.pdf")
 
 def generate_figure_popularity_distribution_alpha_larger_than_one() -> None:
@@ -148,112 +177,85 @@ def generate_figure_popularity_distribution_alpha_larger_than_one() -> None:
 def generate_figure_popularity_distribution_alpha_smaller_than_one() -> None:
     _generate_figure_popularity_distribution(N=100, alpha=0.9, mu=0.1)
 
+def generate_time_to_convergence_over_S_vs_alpha():
+    mu = 0.1
+    N = 100
+    alphavalues = np.linspace(0.01, 2.2, 200)
+    S = compute_S(N=N, alpha=alphavalues, mu=mu)
+    time_to_convergence_over_S = compute_time_to_convergence(N=N, alpha=alphavalues) / S
+    fig = plt.figure(figsize=(8, 5))
+    axis = plt.gca()
+    plot_with_approximation(
+        axis=axis,
+        x=alphavalues,
+        y=time_to_convergence_over_S,
+        y_approx=None
+    )
+    axis.set_xlabel(r"social learning efficiency $\alpha$")
+    axis.set_ylabel("convergence time over $E(S)$")
+    axis.set_title("Rate of convergence")
+    axis.grid(True)
+    save_figure(f"convergence_time_over_S_N{N}_mu{mu}.pdf")
+
 def generate_things_vs_alpha() -> None:
     mu = 0.1
     N = 100
     alphavalues = np.linspace(0.01, 2, 200)  # avoid 0 to prevent division by zero
 
     S = compute_S(N=N, alpha=alphavalues, mu=mu)
+    time_to_convergence_over_S = compute_time_to_convergence(N=N, alpha=alphavalues) / S
+
     S_approx = compute_S_approx(N=N, alpha=alphavalues, mu=mu)
-    
-    # masks for splitting domain
-    mask_less_than_1 = alphavalues < 1
-    mask_greater_than_1 = alphavalues > 1
-    
-    R_over_S_true = compute_R_over_S(N=N, alpha=alphavalues, mu=mu)
+        
+    R_over_S = compute_R_over_S(N=N, alpha=alphavalues, mu=mu)
     R_over_S_approx = compute_R_over_S_approx(N=N, alpha=alphavalues, mu=mu)
   
-    # create two subplots side by side
-    fig, axes = plt.subplots(2, 2, figsize=(14, 6))
-    
-    # Left plot: α in (0,1)
-    axes[0,0].plot(
-        alphavalues[mask_less_than_1],
-        S[mask_less_than_1],
-        label=EXACT_LABEL,
-        color=EXACT_COLOR,
-        linewidth=2,
-    )
-    axes[0,0].plot(
-        alphavalues[mask_less_than_1],
-        S_approx[mask_less_than_1],
-        "--",
-        label=APPROXIMATION_LABEL,
-        color=APPROXIMATION_COLOR,
-    )
-#    axes[0,0].set_xlabel("social earning efficiency $\\alpha$")
-    axes[0,0].set_xticklabels([])
-    axes[0,0].set_ylabel("$E(S)$")
-    axes[0,0].set_title("Total amount of culture")
-    axes[0,0].legend()
-    axes[0,0].grid(True)
-    axes[0,0].set_yscale('log')
-    
-    # Right plot: α in (1,2)
-    axes[0,1].plot(
-        alphavalues[mask_greater_than_1],
-        S[mask_greater_than_1],
-        label=EXACT_LABEL,
-        color=EXACT_COLOR,
-        linewidth=2,
-    )
-    axes[0,1].plot(
-        alphavalues[mask_greater_than_1],
-        S_approx[mask_greater_than_1],
-        "--",
-        label=APPROXIMATION_LABEL,
-        color=APPROXIMATION_COLOR,
-    )
-#    axes[0,1].set_xlabel("social earning efficiency $\\alpha$")
-    axes[0,1].set_xticklabels([])
-    axes[0,1].set_ylabel("$E(S)$")
-    axes[0,1].set_title("Total amount of culture")
-    axes[0,1].legend()
-    axes[0,1].grid(True)
-    axes[0,1].set_yscale('log')
+    # masks for splitting domain
+    masks = [alphavalues < 1, alphavalues > 1]
 
-    # Left panel: α in (0,1)
-    axes[1,0].plot(
-        alphavalues[mask_less_than_1],
-        R_over_S_true[mask_less_than_1],
-        label=EXACT_LABEL,
-        color=EXACT_COLOR,
-        linewidth=2,
-    )
-    axes[1,0].plot(
-        alphavalues[mask_less_than_1],
-        R_over_S_approx[mask_less_than_1],
-        "--",
-        label=APPROXIMATION_LABEL,
-        color=APPROXIMATION_COLOR,
-    )
-    axes[1,0].set_xlabel(r"social learning efficiency $\alpha$")
-    axes[1,0].set_ylabel(r"$E(R) / E(S)$")
-    axes[1,0].set_title(r"Proportion of traits per individual")
-    axes[1,0].legend()
-    axes[1,0].grid(True)
+    # create two subplots side by side
+    _, axes = plt.subplots(3, 2, figsize=(14, 9))
     
-    # Right panel: α in (1,2)
-    axes[1,1].plot(
-        alphavalues[mask_greater_than_1],
-        R_over_S_true[mask_greater_than_1],
-        label=EXACT_LABEL,
-        color=EXACT_COLOR,
-        linewidth=2,
-    )
-    axes[1,1].plot(
-        alphavalues[mask_greater_than_1],
-        R_over_S_approx[mask_greater_than_1],
-        "--",
-        label=APPROXIMATION_LABEL,
-        color=APPROXIMATION_COLOR,
-    )
-    axes[1,1].set_xlabel(r"social learning efficiency $\alpha$")
-    axes[1,1].set_ylabel(r"$E(R) / E(S)$")
-    axes[1,1].set_title(r"Proportion of traits per individual")
-    axes[1,1].legend()
-    axes[1,1].grid(True)
+    for axis, mask in zip([axes[0,0], axes[0,1]], masks):
+        plot_with_approximation(
+            axis=axis,
+            x=alphavalues[mask],
+            y=time_to_convergence_over_S[mask],
+            y_approx=None
+        )
+        axis.set_xticklabels([])
+        axis.set_ylabel("convergence time over $E(S)$")
+        axis.set_title("Rate of convergence")
+        axis.grid(True)
+
+    for axis, mask in zip([axes[1,0], axes[1,1]], masks):
+        plot_with_approximation(
+            axis=axis,
+            x=alphavalues[mask],
+            y=S[mask],
+            y_approx=S_approx[mask]
+        )
+        axis.set_xticklabels([])
+        axis.set_ylabel("$E(S)$")
+        axis.set_title("Total amount of culture")
+        axis.legend()
+        axis.grid(True)
+        if axis == axes[1,1]:
+            axis.set_yscale('log')
     
+    for axis, mask in zip([axes[2,0], axes[2,1]], masks):
+        plot_with_approximation(
+            axis=axis,
+            x=alphavalues[mask],
+            y=R_over_S[mask],
+            y_approx=R_over_S_approx[mask]
+        )
+        axis.set_xlabel(r"social learning efficiency $\alpha$")
+        axis.set_ylabel(r"$E(R) / E(S)$")
+        axis.set_title(r"Proportion of traits per individual")
+        axis.legend()
+        axis.grid(True)
+        
     plt.tight_layout()
     save_figure(f"things_vs_alpha_N{N}_mu{mu}.pdf")
 
@@ -263,10 +265,9 @@ def main() -> None:
     generate_figure_popularity_distribution_alpha_larger_than_one()
     generate_figure_S_vs_N_when_alpha_smaller_than_one()
     generate_figure_S_vs_N_when_alpha_larger_than_one()
+    generate_time_to_convergence_over_S_vs_alpha()
     generate_things_vs_alpha()
-    plt.show()
+    #plt.show()
     
 if __name__ == '__main__':
     main()
-
-
