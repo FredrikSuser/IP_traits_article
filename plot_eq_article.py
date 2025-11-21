@@ -1,10 +1,9 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib
-import path
-import scipy
+import pathlib
 
-IMAGE_FOLDER = path.Path("generated_images")
+IMAGE_FOLDER = pathlib.Path("generated_images")
 EXACT_LABEL = "exact value"
 EXACT_COLOR = "black"
 APPROXIMATION_LABEL = "approximation"
@@ -123,6 +122,7 @@ def compute_time_to_convergence(*, N: int, alpha: float | np.ndarray) -> np.ndar
 
 def save_figure(filename: str) -> None:
     path = IMAGE_FOLDER / filename
+    path.parent.mkdir(parents=True, exist_ok=True)
     plt.savefig(path, bbox_inches='tight')
     print(f"Saved plot to: {path}")
 
