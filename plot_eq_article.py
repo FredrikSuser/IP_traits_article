@@ -197,14 +197,12 @@ def generate_time_to_convergence_over_S_vs_alpha():
     axis.grid(True)
     save_figure(f"convergence_time_over_S_N{N}_mu{mu}.pdf")
 
-def generate_things_vs_alpha() -> None:
+def generate_S_and_R_over_S_vs_alpha() -> None:
     mu = 0.1
     N = 100
     alphavalues = np.linspace(0.01, 2, 200)  # avoid 0 to prevent division by zero
 
     S = compute_S(N=N, alpha=alphavalues, mu=mu)
-    time_to_convergence_over_S = compute_time_to_convergence(N=N, alpha=alphavalues) / S
-
     S_approx = compute_S_approx(N=N, alpha=alphavalues, mu=mu)
         
     R_over_S = compute_R_over_S(N=N, alpha=alphavalues, mu=mu)
@@ -214,21 +212,9 @@ def generate_things_vs_alpha() -> None:
     masks = [alphavalues < 1, alphavalues > 1]
 
     # create two subplots side by side
-    _, axes = plt.subplots(3, 2, figsize=(14, 9))
+    _, axes = plt.subplots(2, 2, figsize=(14, 6))
     
-    for axis, mask in zip([axes[0,0], axes[0,1]], masks):
-        plot_with_approximation(
-            axis=axis,
-            x=alphavalues[mask],
-            y=time_to_convergence_over_S[mask],
-            y_approx=None
-        )
-        axis.set_xticklabels([])
-        axis.set_ylabel("convergence time over $E(S)$")
-        axis.set_title("Rate of convergence")
-        axis.grid(True)
-
-    for axis, mask in zip([axes[1,0], axes[1,1]], masks):
+    for axis, mask in zip(axes[0], masks):
         plot_with_approximation(
             axis=axis,
             x=alphavalues[mask],
@@ -243,7 +229,7 @@ def generate_things_vs_alpha() -> None:
         if axis == axes[1,1]:
             axis.set_yscale('log')
     
-    for axis, mask in zip([axes[2,0], axes[2,1]], masks):
+    for axis, mask in zip(axes[1], masks):
         plot_with_approximation(
             axis=axis,
             x=alphavalues[mask],
@@ -257,7 +243,7 @@ def generate_things_vs_alpha() -> None:
         axis.grid(True)
         
     plt.tight_layout()
-    save_figure(f"things_vs_alpha_N{N}_mu{mu}.pdf")
+    save_figure(f"S_and_R_over_S_vs_alpha_N{N}_mu{mu}.pdf")
 
 
 def main() -> None:
@@ -266,7 +252,7 @@ def main() -> None:
     generate_figure_S_vs_N_when_alpha_smaller_than_one()
     generate_figure_S_vs_N_when_alpha_larger_than_one()
     generate_time_to_convergence_over_S_vs_alpha()
-    generate_things_vs_alpha()
+    generate_S_and_R_over_S_vs_alpha()
     #plt.show()
     
 if __name__ == '__main__':
