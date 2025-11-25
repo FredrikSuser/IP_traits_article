@@ -118,7 +118,8 @@ def compute_time_to_convergence(*, N: int, alpha: float | np.ndarray) -> np.ndar
     eigvals = np.linalg.eigvalsh(B)
     eigvals = np.sort(eigvals)
     max_real_part = np.max(eigvals, axis=-1)
-    return -3 / max_real_part # TODO: Fix the arbitrary factor 3
+    # This is the time where the relative error is down to 1/e:
+    return -1 / max_real_part
 
 def save_figure(filename: str) -> None:
     path = IMAGE_FOLDER / filename
@@ -135,7 +136,7 @@ def _generate_figure_S_vs_N(*, Nmax: int, alpha: float, mu: float) -> None:
     Nvalues = np.arange(0, Nmax)
     S = compute_S_from_N(Nvalues=Nvalues, alpha=alpha, mu=mu)
     S_approx = compute_S_approx(N=Nvalues, alpha=alpha, mu=mu)
-    plt.figure(figsize=(8, 5))
+    plt.figure(figsize=(4, 3))
     plot_with_approximation(axis=plt.gca(), x=Nvalues, y=S, y_approx=S_approx)
     plt.xlabel('population size $N$')
     plt.ylabel('expected amount of culture $E(S)$')
@@ -161,11 +162,11 @@ def _generate_figure_popularity_distribution(*, N: int, alpha: float, mu: float)
     f = compute_f(N=N, alpha=alpha, mu=mu)
     f_approx = compute_f_approx(N=N, alpha=alpha, mu=mu)
     k = np.arange(1, len(f) + 1)
-    plt.figure(figsize=(8, 5))
+    plt.figure(figsize=(4, 3))
     plt.gca().yaxis.set_major_formatter(matplotlib.ticker.ScalarFormatter(useMathText=True))
     plot_with_approximation(axis=plt.gca(), x=k, y=f, y_approx=f_approx)
     plt.xlabel("popularity $k$")
-    plt.ylabel("expected frequency $E(f_k)$")
+    plt.ylabel("expected frequency $E(F_k)$")
     plt.legend()
     plt.grid()
     plt.tight_layout()
@@ -183,7 +184,7 @@ def generate_time_to_convergence_over_S_vs_alpha():
     alphavalues = np.linspace(0.01, 2.2, 200)
     S = compute_S(N=N, alpha=alphavalues, mu=mu)
     time_to_convergence_over_S = compute_time_to_convergence(N=N, alpha=alphavalues) / S
-    fig = plt.figure(figsize=(8, 5))
+    fig = plt.figure(figsize=(6, 3))
     axis = plt.gca()
     plot_with_approximation(
         axis=axis,
@@ -193,7 +194,7 @@ def generate_time_to_convergence_over_S_vs_alpha():
     )
     axis.set_xlabel(r"social learning efficiency $\alpha$")
     axis.set_ylabel("convergence time over $E(S)$")
-    axis.set_title("Rate of convergence")
+    axis.set_title("Time to equilibrium")
     axis.grid(True)
     save_figure(f"convergence_time_over_S_N{N}_mu{mu}.pdf")
 
@@ -212,7 +213,7 @@ def generate_S_and_R_over_S_vs_alpha() -> None:
     masks = [alphavalues < 1, alphavalues > 1]
 
     # create two subplots side by side
-    _, axes = plt.subplots(2, 2, figsize=(14, 6))
+    _, axes = plt.subplots(2, 2, figsize=(8, 6))
     
     for axis, mask in zip(axes[0], masks):
         plot_with_approximation(
@@ -226,7 +227,7 @@ def generate_S_and_R_over_S_vs_alpha() -> None:
         axis.set_title("Total amount of culture")
         axis.legend()
         axis.grid(True)
-        if axis == axes[1,1]:
+        if axis == axes[0,1]:
             axis.set_yscale('log')
     
     for axis, mask in zip(axes[1], masks):
@@ -247,6 +248,7 @@ def generate_S_and_R_over_S_vs_alpha() -> None:
 
 
 def main() -> None:
+    plt.rcParams['text.usetex'] = True
     generate_figure_popularity_distribution_alpha_smaller_than_one()
     generate_figure_popularity_distribution_alpha_larger_than_one()
     generate_figure_S_vs_N_when_alpha_smaller_than_one()
